@@ -15,6 +15,13 @@
       "when": 1786954447631,
       "tag": "0001_late_nomad",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1786954834878,
+      "tag": "0002_shocking_night_thrasher",
+      "breakpoints": true
     }
   ]
 }
