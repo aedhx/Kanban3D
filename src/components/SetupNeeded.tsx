@@ -35,7 +35,9 @@ function diagnostiquer(error: unknown): Diagnostic {
       gestes: [
         'Créez un Postgres gratuit sur neon.com, puis posez sa chaîne de connexion dans Netlify sous le nom DATABASE_URL.',
         'Ou bien, sur une offre à crédits : Project configuration → Database, ce qui pose NETLIFY_DB_URL automatiquement.',
-        'Dans les deux cas, relancez ensuite un déploiement : les migrations créeront les tables.',
+        // La cause la plus fréquente quand la variable est pourtant bien saisie.
+        'La variable est déjà posée ? Alors relancez un déploiement : Netlify ne relit les variables qu’au build suivant, Deploys → Trigger deploy.',
+        'Toujours rien après le déploiement ? Ouvrez la variable et vérifiez sa portée : elle doit couvrir « Functions », pas seulement « Builds ».',
       ],
     }
   }
