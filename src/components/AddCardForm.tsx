@@ -13,6 +13,7 @@ export type NewCardInput = {
   quantity: number
   color: string | null
   notes: string | null
+  dueDate: string | null
 }
 
 const COMMON_COLORS = ['Noir', 'Blanc', 'Gris', 'Rouge', 'Orange', 'Jaune', 'Vert', 'Bleu']
@@ -24,6 +25,7 @@ export function AddCardForm({ onCreate }: { onCreate: (input: NewCardInput) => P
   const [quantity, setQuantity] = useState(1)
   const [color, setColor] = useState('')
   const [notes, setNotes] = useState('')
+  const [dueDate, setDueDate] = useState('')
 
   const [preview, setPreview] = useState<ModelMetadata | null>(null)
   const [looking, setLooking] = useState(false)
@@ -75,6 +77,7 @@ export function AddCardForm({ onCreate }: { onCreate: (input: NewCardInput) => P
     setQuantity(1)
     setColor('')
     setNotes('')
+    setDueDate('')
     setPreview(null)
     setError(null)
     titleTouched.current = false
@@ -102,6 +105,7 @@ export function AddCardForm({ onCreate }: { onCreate: (input: NewCardInput) => P
         quantity,
         color: color.trim() || null,
         notes: notes.trim() || null,
+        dueDate: dueDate || null,
       })
       reset()
       setOpen(false)
@@ -212,6 +216,17 @@ export function AddCardForm({ onCreate }: { onCreate: (input: NewCardInput) => P
           </datalist>
         </div>
       </div>
+
+      <label htmlFor="due" className="mt-3 mb-1 block text-xs font-medium text-muted">
+        Échéance souhaitée <span className="font-normal">(facultatif)</span>
+      </label>
+      <input
+        id="due"
+        type="date"
+        value={dueDate}
+        onChange={(e) => setDueDate(e.target.value)}
+        className="w-full rounded-lg border border-line bg-canvas px-3 py-2 text-sm outline-none focus:border-accent"
+      />
 
       <label htmlFor="notes" className="mt-3 mb-1 block text-xs font-medium text-muted">
         Remarque

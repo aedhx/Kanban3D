@@ -1,9 +1,17 @@
 import { NextResponse } from 'next/server'
-import { asc, eq, sql } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import { getDb } from '@/db'
+import { listCards } from '@/db/queries'
 import { cards } from '@/db/schema'
 import { isAuthenticated } from '@/lib/auth'
-import { POSITION_STEP, isStatus, normalizeQuantity, normalizeText } from '@/lib/cards'
+import {
+  POSITION_STEP,
+  isStatus,
+  normalizeDate,
+  normalizeQuantity,
+  normalizeText,
+} from '@/lib/cards'
+import { notify } from '@/lib/notify'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -13,9 +21,7 @@ export async function GET() {
     return NextResponse.json({ error: 'Non autorisé.' }, { status: 401 })
   }
 
-  const db = getDb()
-  const rows = await db.select().from(cards).orderBy(asc(cards.position), asc(cards.createdAt))
-  return NextResponse.json({ cards: rows })
+  return NextResponse.json({ cards: await listCards() })
 }
 
 export async function POST(request: Request) {
@@ -59,9 +65,21 @@ export async function POST(request: Request) {
       quantity: normalizeQuantity(body.quantity),
       color: normalizeText(body.color, 60),
       notes: normalizeText(body.notes),
+      dueDate: normalizeDate(body.dueDate),
       requestedBy,
+      doneAt: status === 'done' ? new Date() : null,
     })
     .returning()
 
-  return NextResponse.json({ card: created }, { status: 201 })
+  await notify({
+    kind: 'created',
+    title: created.title,
+    by: created.requestedBy,
+    quantity: created.quantity,
+    color: created.color,
+  })
+
+  // La carte vient de naître : aucun message, mais le champ doit être présent
+  // pour que le navigateur reçoive toujours la même forme d'objet.
+  return NextResponse.json({ card: { ...created, commentCount: 0 } }, { status: 201 })
 }

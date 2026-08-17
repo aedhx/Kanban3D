@@ -3,21 +3,34 @@
 import { useEffect, useState } from 'react'
 import { STATUSES, STATUS_LABELS, type Status } from '@/db/schema'
 import type { BoardCard } from '@/lib/board'
+import { formatDate, formatDue } from '@/lib/dates'
+import { CommentThread } from './CommentThread'
 import { Thumbnail } from './Thumbnail'
 
 type Props = {
   card: BoardCard
+  identity: string
   onClose: () => void
   onSave: (id: string, changes: Record<string, unknown>) => Promise<void>
   onMove: (card: BoardCard, status: Status) => void
   onDelete: (card: BoardCard) => Promise<void>
+  onCommentCount: (id: string, count: number) => void
 }
 
-export function CardModal({ card, onClose, onSave, onMove, onDelete }: Props) {
+export function CardModal({
+  card,
+  identity,
+  onClose,
+  onSave,
+  onMove,
+  onDelete,
+  onCommentCount,
+}: Props) {
   const [title, setTitle] = useState(card.title)
   const [quantity, setQuantity] = useState(card.quantity)
   const [color, setColor] = useState(card.color ?? '')
   const [notes, setNotes] = useState(card.notes ?? '')
+  const [dueDate, setDueDate] = useState(card.dueDate ?? '')
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [busy, setBusy] = useState(false)
 
@@ -42,6 +55,7 @@ export function CardModal({ card, onClose, onSave, onMove, onDelete }: Props) {
         quantity,
         color: color.trim() || null,
         notes: notes.trim() || null,
+        dueDate: dueDate || null,
       })
       onClose()
     } finally {
@@ -135,6 +149,22 @@ export function CardModal({ card, onClose, onSave, onMove, onDelete }: Props) {
             </div>
           </div>
 
+          <label htmlFor="m-due" className="mt-3 mb-1 block text-xs font-medium text-muted">
+            Échéance souhaitée
+          </label>
+          <input
+            id="m-due"
+            type="date"
+            value={dueDate}
+            onChange={(e) => setDueDate(e.target.value)}
+            className="w-full rounded-lg border border-line bg-canvas px-3 py-2 text-sm outline-none focus:border-accent"
+          />
+          {dueDate && (
+            <p className="mt-1 text-xs text-muted">
+              {formatDate(dueDate)} · {formatDue(dueDate)}
+            </p>
+          )}
+
           <label htmlFor="m-notes" className="mt-3 mb-1 block text-xs font-medium text-muted">
             Remarque
           </label>
@@ -199,6 +229,12 @@ export function CardModal({ card, onClose, onSave, onMove, onDelete }: Props) {
             )}
           </div>
         </form>
+
+        <CommentThread
+          cardId={card.id}
+          author={identity}
+          onCountChange={(count) => onCommentCount(card.id, count)}
+        />
       </div>
     </div>
   )

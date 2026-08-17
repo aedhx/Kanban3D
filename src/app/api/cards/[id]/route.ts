@@ -1,9 +1,11 @@
 import { NextResponse } from 'next/server'
 import { eq } from 'drizzle-orm'
 import { getDb } from '@/db'
-import { cards } from '@/db/schema'
+import { getCardWithCount } from '@/db/queries'
+import { STATUS_LABELS, cards } from '@/db/schema'
 import { isAuthenticated } from '@/lib/auth'
-import { isStatus, normalizeQuantity, normalizeText } from '@/lib/cards'
+import { isStatus, normalizeDate, normalizeQuantity, normalizeText } from '@/lib/cards'
+import { notify } from '@/lib/notify'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -46,8 +48,12 @@ export async function PATCH(request: Request, { params }: Params) {
 
   // On ne note « déplacé par » que si la carte change réellement de colonne :
   // réordonner à l'intérieur d'une colonne n'est pas un événement à afficher.
-  if (updates.status && updates.status !== existing.status) {
+  const changedColumn = Boolean(updates.status && updates.status !== existing.status)
+  if (changedColumn) {
     updates.lastMovedBy = normalizeText(body.movedBy, 60) ?? existing.lastMovedBy
+    // Horodate l'entrée en « Fait », et l'efface si la carte en ressort : c'est
+    // cette date qui décide de l'archivage.
+    updates.doneAt = updates.status === 'done' ? new Date() : null
   }
 
   // Édition des champs. `in` permet de distinguer « champ absent » (on ne
@@ -66,9 +72,22 @@ export async function PATCH(request: Request, { params }: Params) {
   if ('color' in body) updates.color = normalizeText(body.color, 60)
   if ('notes' in body) updates.notes = normalizeText(body.notes)
   if ('quantity' in body) updates.quantity = normalizeQuantity(body.quantity)
+  if ('dueDate' in body) updates.dueDate = normalizeDate(body.dueDate)
 
   const [updated] = await db.update(cards).set(updates).where(eq(cards.id, id)).returning()
-  return NextResponse.json({ card: updated })
+  const withCount = (await getCardWithCount(id)) ?? { ...updated, commentCount: 0 }
+
+  if (changedColumn) {
+    await notify({
+      kind: 'moved',
+      title: updated.title,
+      by: updated.lastMovedBy ?? updated.requestedBy,
+      from: STATUS_LABELS[existing.status],
+      to: STATUS_LABELS[updated.status],
+    })
+  }
+
+  return NextResponse.json({ card: withCount })
 }
 
 export async function DELETE(_request: Request, { params }: Params) {

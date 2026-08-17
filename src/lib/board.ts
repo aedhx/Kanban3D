@@ -1,21 +1,25 @@
-import type { Card, Status } from '@/db/schema'
+import type { CardWithCount } from '@/db/queries'
+import type { Status } from '@/db/schema'
 import { isStatus, positionBetween } from './cards'
 
 /**
  * Une carte telle que la manipule le navigateur : identique à la ligne en base,
- * mais avec les dates en chaînes ISO — c'est ce que produit la sérialisation
- * JSON, aussi bien depuis le rendu serveur que depuis /api/cards.
+ * mais avec les horodatages en chaînes ISO — c'est ce que produit la
+ * sérialisation JSON, aussi bien depuis le rendu serveur que depuis /api/cards.
+ * (`dueDate` est déjà une chaîne « AAAA-MM-JJ » côté Drizzle.)
  */
-export type BoardCard = Omit<Card, 'createdAt' | 'updatedAt'> & {
+export type BoardCard = Omit<CardWithCount, 'createdAt' | 'updatedAt' | 'doneAt'> & {
   createdAt: string
   updatedAt: string
+  doneAt: string | null
 }
 
-export function toBoardCard(card: Card): BoardCard {
+export function toBoardCard(card: CardWithCount): BoardCard {
   return {
     ...card,
     createdAt: card.createdAt.toISOString(),
     updatedAt: card.updatedAt.toISOString(),
+    doneAt: card.doneAt?.toISOString() ?? null,
   }
 }
 

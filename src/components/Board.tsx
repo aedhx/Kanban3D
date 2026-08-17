@@ -126,6 +126,13 @@ export function Board({ initialCards }: { initialCards: BoardCard[] }) {
     [cards, withBusy],
   )
 
+  /** Le fil de discussion vient d'ajouter un message : on rafraîchit le badge. */
+  const setCommentCount = useCallback((id: string, count: number) => {
+    setCards((current) =>
+      current.map((card) => (card.id === id ? { ...card, commentCount: count } : card)),
+    )
+  }, [])
+
   const deleteCard = useCallback(
     async (card: BoardCard) => {
       const snapshot = cards
@@ -275,10 +282,12 @@ export function Board({ initialCards }: { initialCards: BoardCard[] }) {
       {editing && (
         <CardModal
           card={editing}
+          identity={identity ?? PEOPLE[0]}
           onClose={() => setEditingId(null)}
           onSave={(id, changes) => patchCard(id, changes, changes as Partial<BoardCard>)}
           onMove={moveCard}
           onDelete={deleteCard}
+          onCommentCount={setCommentCount}
         />
       )}
     </main>

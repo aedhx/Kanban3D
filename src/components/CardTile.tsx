@@ -4,6 +4,7 @@ import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { STATUSES, STATUS_LABELS, type Status } from '@/db/schema'
 import { adjacentStatus, type BoardCard } from '@/lib/board'
+import { dueState, formatDue, type DueState } from '@/lib/dates'
 import { Thumbnail } from './Thumbnail'
 
 /** Petite pastille colorée devinée à partir du nom de couleur saisi. */
@@ -35,9 +36,18 @@ function swatchFor(color: string | null): string | null {
   return null
 }
 
+const DUE_STYLES: Record<DueState, string> = {
+  overdue: 'bg-red-500/15 text-red-700 dark:text-red-300 font-semibold',
+  today: 'bg-accent/15 text-accent font-semibold',
+  soon: 'text-muted',
+  later: 'text-muted',
+}
+
 /** Partie haute de la carte : c'est elle qu'on saisit pour glisser. */
 function CardContent({ card }: { card: BoardCard }) {
   const swatch = swatchFor(card.color)
+  // Une échéance sur une carte déjà terminée n'a plus rien à signaler.
+  const due = card.dueDate && card.status !== 'done' ? dueState(card.dueDate) : null
 
   return (
     <div className="flex gap-3 p-3">
@@ -69,6 +79,19 @@ function CardContent({ card }: { card: BoardCard }) {
             </span>
           )}
           {card.source && <span className="truncate">{card.source}</span>}
+
+          {due && (
+            <span className={`rounded px-1.5 py-0.5 ${DUE_STYLES[due]}`}>
+              {due === 'overdue' ? '⚠ ' : ''}
+              {formatDue(card.dueDate!)}
+            </span>
+          )}
+
+          {card.commentCount > 0 && (
+            <span className="inline-flex items-center gap-0.5" title={`${card.commentCount} message(s)`}>
+              💬 {card.commentCount}
+            </span>
+          )}
         </div>
 
         {card.notes && <p className="mt-1.5 line-clamp-2 text-xs text-muted">{card.notes}</p>}
