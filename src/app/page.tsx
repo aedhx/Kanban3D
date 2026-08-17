@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { listCards } from '@/db/queries'
 import { isAuthenticated } from '@/lib/auth'
 import { toBoardCard } from '@/lib/board'
+import { filamentPricePerKg } from '@/lib/settings'
 import { Board } from '@/components/Board'
 import { SetupNeeded } from '@/components/SetupNeeded'
 
@@ -23,5 +24,7 @@ export default async function HomePage() {
     return <SetupNeeded error={error} />
   }
 
-  return <Board initialCards={rows.map(toBoardCard)} />
+  // Le prix du filament est une variable d'environnement : elle n'existe que
+  // côté serveur, d'où ce passage explicite au composant client.
+  return <Board initialCards={rows.map(toBoardCard)} filamentPricePerKg={filamentPricePerKg()} />
 }

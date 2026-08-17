@@ -94,7 +94,7 @@ export function SetupNeeded({ error }: { error: unknown }) {
         <ol className="mt-5 space-y-2.5 text-sm">
           {gestes.map((geste, index) => (
             <li key={index} className="flex gap-3">
-              <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-accent/15 text-[11px] font-semibold text-accent">
+              <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-accent/15 text-[11px] font-semibold text-accent-deep">
                 {index + 1}
               </span>
               <span>{geste}</span>

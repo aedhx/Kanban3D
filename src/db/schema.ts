@@ -1,5 +1,6 @@
 import { relations } from 'drizzle-orm'
 import {
+  customType,
   date,
   doublePrecision,
   index,
@@ -9,6 +10,11 @@ import {
   timestamp,
   uuid,
 } from 'drizzle-orm/pg-core'
+
+/** Octets bruts. Drizzle n'a pas de type `bytea` tout fait. */
+const bytea = customType<{ data: Buffer; driverData: Buffer }>({
+  dataType: () => 'bytea',
+})
 
 /** Les trois colonnes du tableau, dans l'ordre. */
 export const STATUSES = ['todo', 'printing', 'done'] as const
@@ -76,6 +82,15 @@ export const cards = pgTable('cards', {
    */
   doneAt: timestamp('done_at', { withTimezone: true }),
 
+  /**
+   * Date de la photo du résultat, s'il y en a une. Les octets vivent dans
+   * `card_photos` : ils n'ont rien à faire ici, où chaque colonne repart au
+   * navigateur toutes les dix secondes. Cette date suffit à savoir qu'une photo
+   * existe, et sert de numéro de version dans l'URL de l'image — sans quoi une
+   * photo remplacée resterait cachée derrière l'ancienne.
+   */
+  photoAt: timestamp('photo_at', { withTimezone: true }),
+
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 })
@@ -94,6 +109,25 @@ export const comments = pgTable(
   },
   (table) => [index('comments_card_id_idx').on(table.cardId)],
 )
+
+/**
+ * La photo de ce qui est sorti de l'imprimante.
+ *
+ * Table à part, et non colonne de `cards` : le tableau se rafraîchit toutes les
+ * dix secondes, et transporter les octets à chaque fois coûterait des mégaoctets
+ * pour une image qu'on ne regarde presque jamais. Ici, `cards.photo_at` voyage
+ * seul, et la photo se télécharge par son URL, mise en cache par le navigateur.
+ *
+ * Une photo par carte : la clé primaire est la carte elle-même.
+ */
+export const cardPhotos = pgTable('card_photos', {
+  cardId: uuid('card_id')
+    .primaryKey()
+    .references(() => cards.id, { onDelete: 'cascade' }),
+  mime: text('mime').notNull(),
+  bytes: bytea('bytes').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+})
 
 export const cardsRelations = relations(cards, ({ many }) => ({
   comments: many(comments),

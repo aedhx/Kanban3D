@@ -13,6 +13,7 @@ export {
   ArrowRight as IconMovedBy,
   ArrowSquareOut as IconExternalLink,
   CalendarBlank as IconDueDate,
+  Camera as IconPhoto,
   CaretLeft as IconPrevious,
   CaretRight as IconNext,
   ChatCircleText as IconComments,

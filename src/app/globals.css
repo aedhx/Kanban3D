@@ -21,6 +21,13 @@
    */
   --color-accent: #b8540a;
   --color-accent-ink: #ffffff;
+  /*
+   * Accent posé sur un fond légèrement teinté du même accent (le badge « ×2 »).
+   * L'accent nominal n'y tient que 3,4:1 — le fond remonte trop haut. Cette
+   * variante plus sombre atteint 5,7:1. En thème sombre le problème n'existe
+   * pas : la teinte de fond y assombrit, elle n'éclaircit pas.
+   */
+  --color-accent-deep: #8f4108;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -32,6 +39,7 @@
     --color-muted: #9099a8;
     --color-accent: #ff8b33;
     --color-accent-ink: #16181d;
+    --color-accent-deep: #ff8b33;
   }
 }
 

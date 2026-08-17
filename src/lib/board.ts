@@ -8,10 +8,11 @@ import { isStatus, positionBetween } from './cards'
  * sérialisation JSON, aussi bien depuis le rendu serveur que depuis /api/cards.
  * (`dueDate` est déjà une chaîne « AAAA-MM-JJ » côté Drizzle.)
  */
-export type BoardCard = Omit<CardWithCount, 'createdAt' | 'updatedAt' | 'doneAt'> & {
+export type BoardCard = Omit<CardWithCount, 'createdAt' | 'updatedAt' | 'doneAt' | 'photoAt'> & {
   createdAt: string
   updatedAt: string
   doneAt: string | null
+  photoAt: string | null
   /**
    * Carte affichée avant que le serveur ne l'ait créée : le temps qu'il aille
    * chercher les informations du modèle, on montre déjà quelque chose. Champ
@@ -44,6 +45,7 @@ export function pendingCard(id: string, title: string, requestedBy: string): Boa
     requestedBy,
     lastMovedBy: null,
     doneAt: null,
+    photoAt: null,
     createdAt: now,
     updatedAt: now,
     commentCount: 0,
@@ -57,6 +59,7 @@ export function toBoardCard(card: CardWithCount): BoardCard {
     createdAt: card.createdAt.toISOString(),
     updatedAt: card.updatedAt.toISOString(),
     doneAt: card.doneAt?.toISOString() ?? null,
+    photoAt: card.photoAt?.toISOString() ?? null,
   }
 }
 

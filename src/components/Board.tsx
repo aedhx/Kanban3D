@@ -27,7 +27,14 @@ import { Column } from './Column'
 
 const REFRESH_INTERVAL_MS = 10_000
 
-export function Board({ initialCards }: { initialCards: BoardCard[] }) {
+export function Board({
+  initialCards,
+  filamentPricePerKg,
+}: {
+  initialCards: BoardCard[]
+  /** Prix du kilo, ou `null` si la variable d'environnement n'est pas posée. */
+  filamentPricePerKg: number | null
+}) {
   const { identity, choose, loaded } = useIdentity()
   const [cards, setCards] = useState<BoardCard[]>(initialCards)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -162,6 +169,15 @@ export function Board({ initialCards }: { initialCards: BoardCard[] }) {
     setCards((current) =>
       current.map((card) => (card.id === id ? { ...card, commentCount: count } : card)),
     )
+  }, [])
+
+  /**
+   * Une photo vient d'être déposée ou retirée. On ne recharge pas tout le
+   * tableau pour autant : seule cette carte change, et sa date de photo suffit à
+   * faire apparaître la nouvelle vignette.
+   */
+  const setPhotoAt = useCallback((id: string, photoAt: string | null) => {
+    setCards((current) => current.map((card) => (card.id === id ? { ...card, photoAt } : card)))
   }, [])
 
   const deleteCard = useCallback(
@@ -328,13 +344,18 @@ export function Board({ initialCards }: { initialCards: BoardCard[] }) {
                   status={status}
                   cards={columnCards(cards, status)}
                   selectedId={editingId}
+                  filamentPricePerKg={filamentPricePerKg}
                   onOpen={(card) => setEditingId(card.id)}
                   onMove={moveCard}
                 />
               ))}
             </div>
 
-            <DragOverlay>{activeCard && <CardPreview card={activeCard} />}</DragOverlay>
+            <DragOverlay>
+              {activeCard && (
+                <CardPreview card={activeCard} filamentPricePerKg={filamentPricePerKg} />
+              )}
+            </DragOverlay>
           </DndContext>
         </div>
       </main>
@@ -343,11 +364,13 @@ export function Board({ initialCards }: { initialCards: BoardCard[] }) {
         <CardPanel
           card={editing}
           identity={identity ?? PEOPLE[0]}
+          filamentPricePerKg={filamentPricePerKg}
           onClose={() => setEditingId(null)}
           onSave={(id, changes) => patchCard(id, changes, changes as Partial<BoardCard>)}
           onMove={moveCard}
           onDelete={deleteCard}
           onCommentCount={setCommentCount}
+          onPhotoChange={setPhotoAt}
         />
       )}
     </div>

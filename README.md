@@ -64,6 +64,33 @@ le dernier mot, après un passage au trancheur.
 
 Le récapitulatif suit la saisie : on tape `214`, on lit `3 h 34`.
 
+### Et ce que ça coûte
+
+Posez le prix du kilo de filament dans `FILAMENT_PRICE_PER_KG`, et chaque carte
+chiffre son impression : `3 h 14 · 39 g · ~0,97 €`. Chaque colonne affiche son
+total, quantités comprises — de quoi savoir, avant de lancer quoi que ce soit, si
+la file représente une soirée ou un week-end :
+
+> **À IMPRIMER** 3 · 10 h 02 · 130 g · ~3,24 €
+
+Sans cette variable, aucun prix n'apparaît nulle part : mieux vaut ne rien dire
+qu'avancer un chiffre tiré d'une moyenne inventée.
+
+---
+
+## La photo de ce qui est sorti
+
+Le seul moment que le tableau ne montrait pas. Sur la carte terminée, une photo
+prise au téléphone remplace l'image du modèle — la colonne « Fait » cesse d'être
+une liste et devient une étagère.
+
+![Le champ photo du panneau](docs/images/photo.png)
+
+Sur mobile, le bouton ouvre directement l'appareil photo. L'image est
+redimensionnée **dans le navigateur** avant l'envoi (1600 px, JPEG) : une photo de
+4 Mo part en 60 ko, ce qui compte quand on est au fond du garage au bout du wifi.
+Les métadonnées EXIF disparaissent au passage, position GPS comprise.
+
 ---
 
 ## Un panneau, pas une fenêtre modale
@@ -198,6 +225,7 @@ Dans **Project configuration → Environment variables** :
 | `DATABASE_URL` | la chaîne de connexion Neon de l'étape 2 (inutile avec Netlify Database) |
 | `APP_PIN` | le code que vous partagez avec votre frère, par ex. `4271` |
 | `APP_SECRET` | une chaîne aléatoire, obtenue avec `openssl rand -hex 32` |
+| `FILAMENT_PRICE_PER_KG` | facultatif : prix du kilo de filament, pour chiffrer les impressions |
 
 Ces variables ne sont lues qu'au déploiement : après les avoir posées ou
 modifiées, relancez un déploiement pour qu'elles prennent effet.
@@ -378,6 +406,36 @@ que chaque plateforme donne réellement aujourd'hui.
 
 Zéro est traité comme « non renseigné » : les plateformes l'emploient dans ce
 sens, et « 0 minute » ne veut rien dire sur une carte.
+
+**Le prix et les totaux.** `FILAMENT_PRICE_PER_KG` allume l'estimation du coût.
+Une carte chiffre **une** pièce, comme la durée et le poids affichés à côté ; un
+total de colonne, lui, multiplie par les quantités — c'est le mot « total » qui
+lève l'ambiguïté, plutôt qu'une note en petits caractères. Le tilde de « ~0,97 € »
+n'est pas décoratif : le poids vient d'un arrondi de la plateforme et le prix
+d'une moyenne.
+
+### La photo du résultat
+
+`card_photos`, table à part, et non colonne de `cards` — c'est la seule décision
+importante ici. Le tableau se rafraîchit toutes les dix secondes ; une photo
+stockée dans la ligne repartirait au navigateur à chaque fois, soit des mégaoctets
+par minute pour une image qu'on regarde une fois. La carte ne transporte donc que
+`photo_at`, et l'image se télécharge par `GET /api/cards/{id}/photo`.
+
+Cette date sert aussi de numéro de version : l'URL porte `?v=<photo_at>`, ce qui
+permet un `Cache-Control: immutable` d'un an sans qu'une photo remplacée reste
+masquée par l'ancienne. `private`, parce que ces images vivent derrière un code
+partagé et n'ont rien à faire dans un cache intermédiaire.
+
+Le redimensionnement a lieu **dans le navigateur** (`src/lib/photo.ts`, canvas,
+1600 px, JPEG 0,82) : c'est celui qui prend la photo qui est au bout du wifi, pas
+le serveur. Effet de bord bienvenu, le passage par le canvas efface les
+métadonnées EXIF — dont la position GPS, qu'on n'a aucune raison de stocker.
+
+Le serveur ne fait pas confiance pour autant : formats limités à JPEG, PNG et
+WebP, 3 Mo maximum. La clé primaire est la carte elle-même — une photo par carte,
+la deuxième remplace la première — et la suppression en cascade emporte la photo
+avec la carte.
 
 ### Vignettes
 

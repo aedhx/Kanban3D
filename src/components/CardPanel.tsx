@@ -4,8 +4,9 @@ import { useEffect, useRef, useState } from 'react'
 import { STATUSES, STATUS_LABELS, type Status } from '@/db/schema'
 import type { BoardCard } from '@/lib/board'
 import { formatDate, formatDue } from '@/lib/dates'
-import { printCostParts } from '@/lib/printInfo'
+import { formatFilamentCost, printCostParts } from '@/lib/printInfo'
 import { CommentThread } from './CommentThread'
+import { PhotoField } from './PhotoField'
 import { IconClose, IconDelete, IconExternalLink } from './icons'
 import { Thumbnail } from './Thumbnail'
 
@@ -30,11 +31,13 @@ function numberValue(value: string): number | null {
 type Props = {
   card: BoardCard
   identity: string
+  filamentPricePerKg: number | null
   onClose: () => void
   onSave: (id: string, changes: Record<string, unknown>) => Promise<void>
   onMove: (card: BoardCard, status: Status) => void
   onDelete: (card: BoardCard) => Promise<void>
   onCommentCount: (id: string, count: number) => void
+  onPhotoChange: (id: string, photoAt: string | null) => void
 }
 
 /**
@@ -49,11 +52,13 @@ type Props = {
 export function CardPanel({
   card,
   identity,
+  filamentPricePerKg,
   onClose,
   onSave,
   onMove,
   onDelete,
   onCommentCount,
+  onPhotoChange,
 }: Props) {
   const [title, setTitle] = useState(card.title)
   const [quantity, setQuantity] = useState(card.quantity)
@@ -107,13 +112,18 @@ export function CardPanel({
 
   // Ce que la carte affichera, recalculé pendant la saisie : on voit « 214 min »
   // devenir « 3 h 34 » avant même d'enregistrer.
-  const summary = printCostParts({
-    printMinutes: numberValue(printMinutes),
-    filamentGrams: numberValue(filamentGrams),
-    material: material.trim() || null,
-    fileCount: null,
-    pieceCount: null,
-  }).join(' · ')
+  const summary = [
+    ...printCostParts({
+      printMinutes: numberValue(printMinutes),
+      filamentGrams: numberValue(filamentGrams),
+      material: material.trim() || null,
+      fileCount: null,
+      pieceCount: null,
+    }),
+    formatFilamentCost(numberValue(filamentGrams), filamentPricePerKg),
+  ]
+    .filter(Boolean)
+    .join(' · ')
 
   async function save(event: React.FormEvent) {
     event.preventDefault()
@@ -382,7 +392,7 @@ export function CardPanel({
                   className={[
                     'flex-1 rounded-lg border px-2 py-2 text-xs transition-colors',
                     card.status === status
-                      ? 'border-accent bg-accent/10 font-medium text-accent'
+                      ? 'border-accent bg-accent/10 font-medium text-accent-deep'
                       : 'border-line text-muted hover:border-accent',
                   ].join(' ')}
                 >
@@ -440,6 +450,12 @@ export function CardPanel({
             <option key={name} value={name} />
           ))}
         </datalist>
+
+        <PhotoField
+          cardId={card.id}
+          photoAt={card.photoAt}
+          onChange={(photoAt) => onPhotoChange(card.id, photoAt)}
+        />
 
         <CommentThread
           cardId={card.id}

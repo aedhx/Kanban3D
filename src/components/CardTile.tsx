@@ -5,7 +5,8 @@ import { CSS } from '@dnd-kit/utilities'
 import { STATUSES, STATUS_LABELS, type Status } from '@/db/schema'
 import { adjacentStatus, type BoardCard } from '@/lib/board'
 import { dueState, formatDue, type DueState } from '@/lib/dates'
-import { formatPieces, formatPrintTime, printCostParts } from '@/lib/printInfo'
+import { photoUrl } from '@/lib/photo'
+import { formatFilamentCost, formatPieces, formatPrintTime, printCostParts } from '@/lib/printInfo'
 import {
   IconComments,
   IconDueDate,
@@ -52,26 +53,37 @@ function swatchFor(color: string | null): string | null {
 
 const DUE_STYLES: Record<DueState, string> = {
   overdue: 'bg-red-500/15 text-red-700 dark:text-red-300 font-semibold',
-  today: 'bg-accent/15 text-accent font-semibold',
+  today: 'bg-accent/15 text-accent-deep font-semibold',
   soon: 'text-muted',
   later: 'text-muted',
 }
 
 /** Partie haute de la carte : c'est elle qu'on saisit pour glisser. */
-function CardContent({ card }: { card: BoardCard }) {
+function CardContent({
+  card,
+  filamentPricePerKg,
+}: {
+  card: BoardCard
+  filamentPricePerKg: number | null
+}) {
   const swatch = swatchFor(card.color)
   // Une échéance sur une carte déjà terminée n'a plus rien à signaler.
   const due = card.dueDate && card.status !== 'done' ? dueState(card.dueDate) : null
   // Ce que l'impression va coûter, et s'il y a un assemblage à prévoir.
   // L'horloge n'annonce que la durée : sans durée, « 52 g » se passe d'icône.
-  const cost = printCostParts(card).join(' · ')
+  // Le prix rejoint la ligne, sur la même base qu'elle : pour une pièce.
+  const cost = [...printCostParts(card), formatFilamentCost(card.filamentGrams, filamentPricePerKg)]
+    .filter(Boolean)
+    .join(' · ')
   const timed = formatPrintTime(card.printMinutes) !== null
   const pieces = formatPieces(card.pieceCount)
 
   return (
     <div className="flex gap-3 p-3">
       <Thumbnail
-        src={card.imageUrl}
+        // La photo du résultat passe devant l'image du modèle : sur une carte
+        // terminée, ce qui compte est ce qui est sorti de l'imprimante.
+        src={card.photoAt ? photoUrl(card.id, card.photoAt) : card.imageUrl}
         label={card.title}
         size={160}
         className="h-14 w-14 shrink-0 rounded-lg border border-line object-cover text-lg"
@@ -82,7 +94,7 @@ function CardContent({ card }: { card: BoardCard }) {
 
         <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted">
           {card.quantity > 1 && (
-            <span className="rounded bg-accent/15 px-1.5 py-0.5 font-semibold text-accent">
+            <span className="rounded bg-accent/15 px-1.5 py-0.5 font-semibold text-accent-deep">
               ×{card.quantity}
             </span>
           )}
@@ -201,12 +213,14 @@ function CardFooter({
 export function CardTile({
   card,
   selected = false,
+  filamentPricePerKg,
   onOpen,
   onMove,
 }: {
   card: BoardCard
   /** Carte actuellement ouverte dans le panneau latéral. */
   selected?: boolean
+  filamentPricePerKg: number | null
   onOpen: (card: BoardCard) => void
   onMove: (card: BoardCard, status: Status) => void
 }) {
@@ -242,7 +256,7 @@ export function CardTile({
         aria-current={selected ? 'true' : undefined}
         aria-label={`${card.title} — ouvrir le détail`}
       >
-        <CardContent card={card} />
+        <CardContent card={card} filamentPricePerKg={filamentPricePerKg} />
       </div>
 
       <CardFooter card={card} onMove={onMove} interactive />
@@ -251,10 +265,16 @@ export function CardTile({
 }
 
 /** Aperçu affiché dans le DragOverlay : mêmes pixels, aucune interaction. */
-export function CardPreview({ card }: { card: BoardCard }) {
+export function CardPreview({
+  card,
+  filamentPricePerKg,
+}: {
+  card: BoardCard
+  filamentPricePerKg: number | null
+}) {
   return (
     <div className="rotate-2 rounded-xl border border-line bg-surface shadow-xl">
-      <CardContent card={card} />
+      <CardContent card={card} filamentPricePerKg={filamentPricePerKg} />
       <CardFooter card={card} onMove={() => {}} interactive={false} />
     </div>
   )

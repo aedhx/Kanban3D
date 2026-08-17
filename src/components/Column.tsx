@@ -6,6 +6,7 @@ import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { STATUS_LABELS, type Status } from '@/db/schema'
 import type { BoardCard } from '@/lib/board'
 import { ARCHIVE_AFTER_DAYS, isArchived } from '@/lib/dates'
+import { columnTotals } from '@/lib/printInfo'
 import { CardTile } from './CardTile'
 import { Thumbnail } from './Thumbnail'
 
@@ -13,11 +14,12 @@ type Props = {
   status: Status
   cards: BoardCard[]
   selectedId: string | null
+  filamentPricePerKg: number | null
   onOpen: (card: BoardCard) => void
   onMove: (card: BoardCard, status: Status) => void
 }
 
-export function Column({ status, cards, selectedId, onOpen, onMove }: Props) {
+export function Column({ status, cards, selectedId, filamentPricePerKg, onOpen, onMove }: Props) {
   // La colonne est elle-même une cible de dépôt : sans cela, impossible de
   // déposer une carte dans une colonne vide.
   const { setNodeRef, isOver } = useDroppable({ id: status })
@@ -39,6 +41,14 @@ export function Column({ status, cards, selectedId, onOpen, onMove }: Props) {
 
   const shown = showArchived ? [...archived, ...visible] : visible
 
+  // Ce que la colonne représente en temps machine et en filament. Sur les
+  // cartes visibles seulement : l'historique replié n'est plus du travail à
+  // faire. Quantités comprises, contrairement aux lignes des cartes.
+  const totaux = useMemo(
+    () => columnTotals(visible, filamentPricePerKg).join(' · '),
+    [visible, filamentPricePerKg],
+  )
+
   return (
     <section
       className="flex min-w-[280px] flex-1 snap-start flex-col sm:min-w-0"
@@ -47,6 +57,11 @@ export function Column({ status, cards, selectedId, onOpen, onMove }: Props) {
       <header className="mb-2 flex items-baseline gap-2 px-1">
         <h2 className="text-sm font-semibold tracking-wide uppercase">{STATUS_LABELS[status]}</h2>
         <span className="text-xs text-muted">{visible.length + pending.length}</span>
+        {totaux && (
+          <span className="truncate text-xs text-muted" data-testid="column-totals">
+            {totaux}
+          </span>
+        )}
       </header>
 
       <div
@@ -80,6 +95,7 @@ export function Column({ status, cards, selectedId, onOpen, onMove }: Props) {
                 key={card.id}
                 card={card}
                 selected={card.id === selectedId}
+                filamentPricePerKg={filamentPricePerKg}
                 onOpen={onOpen}
                 onMove={onMove}
               />

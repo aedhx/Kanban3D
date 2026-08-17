@@ -158,6 +158,19 @@ for (const dark of [false, true]) {
   await ctx.close()
 }
 
+/* ---------- Le champ photo du panneau ---------- */
+{
+  const { ctx, page } = await open({})
+  await page.locator('li:has-text("Exam Roulette") [data-testid="card-handle"]').click()
+  await page.waitForSelector('[data-testid="card-panel"]')
+  const photo = page.locator('[data-testid="card-panel"] section', { hasText: 'Photo du résultat' })
+  await photo.scrollIntoViewIfNeeded()
+  await page.waitForTimeout(300)
+  await photo.screenshot({ path: `${OUT}/photo.png` })
+  console.log('  photo.png')
+  await ctx.close()
+}
+
 /* ---------- Mobile : tableau + panneau en feuille ---------- */
 for (const dark of [false, true]) {
   const { ctx, page } = await open({ dark, width: 390, height: 844, mobile: true })
