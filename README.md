@@ -27,19 +27,20 @@ publié sont déjà décrits dans `netlify.toml`, il n'y a rien à saisir.
 
 ### 2. Activer la base de données
 
-**Project configuration → Database → Netlify DB.**
+**Project configuration → Database**, puis activez la base.
 
 Tout se passe dans Netlify : il n'y a aucun compte à créer ailleurs, aucun
-service externe à raccorder. Netlify provisionne la base et renseigne
-`DATABASE_URL` tout seul. (Neon n'est que la technologie sous le capot, au même
-titre qu'AWS est sous celui de Netlify.)
-
-> **Cliquez ensuite sur *Claim database*.** Sans cela, la base est en essai et
-> **expire au bout de sept jours**, données comprises. Le bouton la rattache
-> définitivement au compte, gratuitement.
+service externe à raccorder, et **aucune variable à saisir à la main** — Netlify
+fournit `NETLIFY_DB_URL` de lui-même, aux builds comme aux fonctions.
 
 Les tables sont créées automatiquement au premier déploiement : la commande de
 build applique les migrations avant de construire le site.
+
+> **Le nom de la variable dépend de l'âge de votre base.** Netlify Database
+> (disponibilité générale depuis avril 2026) expose `NETLIFY_DB_URL` ;
+> l'ancienne extension « Netlify DB » exposait `NETLIFY_DATABASE_URL`.
+> L'application accepte les deux, plus `DATABASE_URL` pour le développement
+> local — voir `src/lib/databaseUrl.ts`.
 
 ### 3. Ajouter les deux variables restantes
 
@@ -69,8 +70,8 @@ place :
 | Symptôme | Cause |
 | --- | --- |
 | Le code est refusé avec « L'application n'est pas configurée » | `APP_PIN` ou `APP_SECRET` manque |
-| Le journal de build affiche « DATABASE_URL absente » | la base n'est pas branchée, ou pas encore *claimed* |
-| Le tableau renvoie une erreur 500 | les migrations n'ont pas tourné ; relancez un déploiement |
+| Le journal de build affiche « aucune chaîne de connexion » | la base n'est pas activée dans l'onglet Database |
+| Le tableau affiche un écran de configuration | il nomme lui-même la cause et les gestes à faire |
 
 ## En local
 
@@ -82,6 +83,7 @@ npm run dev                    # http://localhost:3000
 ```
 
 Pour un Postgres local, `DATABASE_URL=postgresql://postgres@127.0.0.1:5432/kanban3d`.
+En production cette variable reste vide : c'est `NETLIFY_DB_URL` qui sert.
 
 Autres commandes :
 

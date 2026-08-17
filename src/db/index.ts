@@ -1,5 +1,6 @@
 import { drizzle, type PostgresJsDatabase } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
+import { missingDatabaseUrlMessage, resolveDatabaseUrl } from '@/lib/databaseUrl'
 import * as schema from './schema'
 
 type Db = PostgresJsDatabase<typeof schema>
@@ -19,12 +20,8 @@ const globalForDb = globalThis as unknown as {
 export function getDb(): Db {
   if (globalForDb.__kanban3dDb) return globalForDb.__kanban3dDb
 
-  const url = process.env.DATABASE_URL
-  if (!url) {
-    throw new Error(
-      "DATABASE_URL n'est pas définie. Copiez .env.example vers .env.local et renseignez-la.",
-    )
-  }
+  const url = resolveDatabaseUrl()
+  if (!url) throw new Error(missingDatabaseUrlMessage())
 
   const client =
     globalForDb.__kanban3dClient ??

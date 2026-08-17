@@ -8,6 +8,8 @@
  * sont pourtant reconnaissables et se corrigent chacune en un geste.
  */
 
+import { DATABASE_URL_VARIABLES } from '@/lib/databaseUrl'
+
 type Diagnostic = {
   titre: string
   cause: string
@@ -26,15 +28,14 @@ function diagnostiquer(error: unknown): Diagnostic {
   const causeMessage = cause instanceof Error ? cause.message : ''
   const tout = `${message} ${causeMessage}`
 
-  if (tout.includes('DATABASE_URL')) {
+  if (/chaîne de connexion|DATABASE_URL/i.test(tout)) {
     return {
       titre: 'La base de données n’est pas branchée',
-      cause: 'La variable DATABASE_URL est absente.',
+      cause: `Aucune chaîne de connexion trouvée (${DATABASE_URL_VARIABLES.join(', ')}).`,
       gestes: [
-        'Dans Netlify : Project configuration → Database → Netlify DB.',
-        'Cliquez sur « Claim database » pour la conserver définitivement.',
-        'Vérifiez que DATABASE_URL apparaît bien dans les variables d’environnement — ne la supprimez pas, c’est l’extension qui la gère.',
-        'Puis Deploys → Trigger deploy.',
+        'Dans Netlify : Project configuration → Database, puis activez la base.',
+        'Netlify pose alors NETLIFY_DB_URL tout seul — il n’y a aucune variable à saisir à la main.',
+        'Puis Deploys → Trigger deploy : les migrations créeront les tables.',
       ],
     }
   }
@@ -58,9 +59,9 @@ function diagnostiquer(error: unknown): Diagnostic {
       cause: 'La connexion a échoué ou a expiré.',
       code,
       gestes: [
-        'La base a peut-être expiré : une base Netlify DB non « claimed » disparaît au bout de sept jours.',
-        'Vérifiez son état dans Project configuration → Database.',
-        'Si elle a expiré, provisionnez-en une nouvelle puis relancez un déploiement — les tables seront recréées.',
+        'Vérifiez l’état de la base dans Project configuration → Database.',
+        'Si elle a été supprimée ou a expiré, provisionnez-en une nouvelle.',
+        'Puis relancez un déploiement : les tables seront recréées.',
       ],
     }
   }

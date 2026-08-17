@@ -4,9 +4,9 @@
  *
  * Deux garde-fous :
  *
- * - Sans DATABASE_URL, on sort sans rien faire. Le build doit rester possible
- *   hors ligne, et une prévisualisation de déploiement sans base ne doit pas
- *   échouer pour autant.
+ * - Sans chaîne de connexion, on sort sans rien faire. Le build doit rester
+ *   possible hors ligne, et une prévisualisation de déploiement sans base ne
+ *   doit pas échouer pour autant.
  * - Si une migration échoue alors que la base est joignable, on fait échouer le
  *   build. Mieux vaut un déploiement rouge qu'un site en ligne dont le schéma ne
  *   correspond pas au code.
@@ -16,12 +16,22 @@
  */
 import { spawnSync } from 'node:child_process'
 
-if (!process.env.DATABASE_URL) {
-  console.log('[migrate] DATABASE_URL absente — aucune migration appliquée.')
+// Mêmes variables que src/lib/databaseUrl.ts, dans le même ordre. Netlify a
+// changé de nom au fil de ses versions : NETLIFY_DB_URL aujourd'hui,
+// NETLIFY_DATABASE_URL pour l'ancienne extension.
+const VARIABLES = ['DATABASE_URL', 'NETLIFY_DB_URL', 'NETLIFY_DATABASE_URL']
+
+const trouvee = VARIABLES.find((nom) => process.env[nom]?.trim())
+
+if (!trouvee) {
+  console.log(
+    `[migrate] aucune chaîne de connexion (${VARIABLES.join(', ')}) — aucune migration appliquée.`,
+  )
   process.exit(0)
 }
 
-console.log('[migrate] application des migrations en attente…')
+console.log(`[migrate] connexion lue depuis ${trouvee}, application des migrations en attente…`)
+
 const result = spawnSync('npx', ['drizzle-kit', 'migrate'], {
   stdio: 'inherit',
   env: process.env,
