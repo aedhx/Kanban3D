@@ -33,9 +33,9 @@ function diagnostiquer(error: unknown): Diagnostic {
       titre: 'La base de données n’est pas branchée',
       cause: `Aucune chaîne de connexion trouvée (${DATABASE_URL_VARIABLES.join(', ')}).`,
       gestes: [
-        'Dans Netlify : Project configuration → Database, puis activez la base.',
-        'Netlify pose alors NETLIFY_DB_URL tout seul — il n’y a aucune variable à saisir à la main.',
-        'Puis Deploys → Trigger deploy : les migrations créeront les tables.',
+        'Créez un Postgres gratuit sur neon.com, puis posez sa chaîne de connexion dans Netlify sous le nom DATABASE_URL.',
+        'Ou bien, sur une offre à crédits : Project configuration → Database, ce qui pose NETLIFY_DB_URL automatiquement.',
+        'Dans les deux cas, relancez ensuite un déploiement : les migrations créeront les tables.',
       ],
     }
   }
@@ -48,7 +48,7 @@ function diagnostiquer(error: unknown): Diagnostic {
       gestes: [
         'Les migrations tournent au moment de la construction du site.',
         'Dans Netlify : Deploys → Trigger deploy → Clear cache and deploy site.',
-        'Dans le journal de construction, cherchez la ligne « [migrate] ». Si elle indique « DATABASE_URL absente », c’est la base qui n’est pas branchée.',
+        'Dans le journal de construction, cherchez la ligne « [migrate] » : elle nomme la variable utilisée, ou signale qu’aucune n’a été trouvée.',
       ],
     }
   }
