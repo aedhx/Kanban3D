@@ -250,7 +250,7 @@ function MoveButton({
       title={label}
       disabled={disabled}
       onClick={onClick}
-      className="flex h-6 w-6 items-center justify-center rounded border border-line text-muted transition-colors hover:border-accent hover:text-accent disabled:pointer-events-none disabled:opacity-25"
+      className="flex h-10 w-10 items-center justify-center rounded border border-line text-muted transition-colors hover:border-accent hover:text-accent disabled:pointer-events-none disabled:opacity-25 sm:h-6 sm:w-6"
     >
       {children}
     </button>

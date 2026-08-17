@@ -66,6 +66,31 @@ body {
   }
 }
 
+/*
+ * Safari sur iOS zoome dans la page dès qu'on met le doigt dans un champ dont la
+ * police descend sous 16 px — et le zoom ne se défait pas, si bien que la mise en
+ * page déborde. Les champs de l'interface sont en 14 px (« text-sm ») pour rester
+ * discrets sur grand écran ; on les remonte donc à 16 px sur petit écran.
+ *
+ * La règle est volontairement écrite ici plutôt que classe par classe : elle
+ * couvre aussi les champs qui seront ajoutés plus tard, sans qu'il faille y
+ * penser. `[class]` porte sa spécificité au niveau d'un utilitaire Tailwind, de
+ * quoi l'emporter sur « text-sm » sans recourir à !important.
+ *
+ * Un champ déjà à 16 px ou plus n'a pas besoin d'être ramené à 16 : il porte
+ * alors `data-keep-size` pour garder sa taille propre.
+ *
+ * Fixer « maximum-scale » dans le viewport ferait taire le zoom aussi, mais en
+ * privant tout le monde du zoom manuel : ce n'est pas acceptable.
+ */
+@media (max-width: 639px) {
+  input[class]:not([data-keep-size]),
+  textarea[class]:not([data-keep-size]),
+  select[class]:not([data-keep-size]) {
+    font-size: 16px;
+  }
+}
+
 /* Empêche le navigateur de faire défiler la page pendant un glisser tactile. */
 [data-dragging='true'] {
   touch-action: none;

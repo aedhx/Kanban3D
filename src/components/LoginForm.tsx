@@ -60,6 +60,8 @@ export function LoginForm() {
           value={pin}
           onChange={(e) => setPin(e.target.value)}
           placeholder="••••••"
+          // Déjà à 18 px : au-dessus du seuil de zoom d'iOS, on garde sa taille.
+          data-keep-size=""
           className="w-full rounded-lg border border-line bg-canvas px-4 py-3 text-center text-lg tracking-[0.4em] outline-none focus:border-accent"
         />
 
