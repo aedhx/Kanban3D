@@ -3,6 +3,7 @@ import { listCards } from '@/db/queries'
 import { isAuthenticated } from '@/lib/auth'
 import { toBoardCard } from '@/lib/board'
 import { Board } from '@/components/Board'
+import { SetupNeeded } from '@/components/SetupNeeded'
 
 export const dynamic = 'force-dynamic'
 
@@ -11,7 +12,16 @@ export default async function HomePage() {
 
   // Le tableau est rendu côté serveur avec ses cartes : pas d'écran de
   // chargement au premier affichage.
-  const rows = await listCards()
+  let rows
+  try {
+    rows = await listCards()
+  } catch (error) {
+    // Une base absente ou vide est une erreur de configuration, pas une panne :
+    // laisser Next afficher son « Application error » obligerait à aller lire
+    // les journaux du serveur pour quelque chose qui se corrige en un clic.
+    console.error('[tableau] chargement impossible :', error)
+    return <SetupNeeded error={error} />
+  }
 
   return <Board initialCards={rows.map(toBoardCard)} />
 }
