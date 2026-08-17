@@ -1,0 +1,24 @@
+[build]
+  command = "npm run build"
+  publish = ".next"
+
+[build.environment]
+  NODE_VERSION = "22"
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
+
+# Hôtes d'images que l'Image CDN de Netlify a le droit de redimensionner.
+# Volontairement restreint aux CDN des plateformes gérées : une liste ouverte
+# transformerait le site en proxy d'images public. Pour les autres hôtes, le
+# composant Thumbnail se rabat sur l'URL d'origine.
+[images]
+  remote_images = [
+    "https://media\\.printables\\.com/.*",
+    "https://makerworld\\.bblmw\\.com/.*",
+    "https://.*\\.makerworld\\.com/.*",
+    "https://resize\\.thingiverse\\.com/.*",
+    "https://cdn\\.thingiverse\\.com/.*",
+    "https://images\\.cults3d\\.com/.*",
+    "https://files\\.cults3d\\.com/.*",
+  ]
