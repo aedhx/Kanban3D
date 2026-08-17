@@ -434,6 +434,31 @@ l'interface. Le cube est lu depuis le paquet Phosphor, à l'endroit même où
 peuvent pas diverger. Tout le contenu tient dans le carré central, de sorte qu'un
 rognage en 1:1 conserve l'essentiel.
 
+### Le mot d'accueil
+
+`src/components/Greeting.tsx`, affiché **uniquement après le choix initial du
+prénom** — pas à chaque bascule d'utilisateur depuis l'en-tête, qui se fait en un
+clic et où un plein écran deviendrait pénible. Chacun a sa phrase : celui qui
+possède l'imprimante n'a pas la même chose à entendre que celui qui demande.
+
+Trois détails qui font la différence entre un effet de frappe et un effet de
+frappe réussi :
+
+- **la place est réservée d'avance.** Le texte complet est posé en fantôme,
+  invisible, dans la même cellule de grille que le texte qui s'écrit. Sans lui, la
+  phrase centrée se recentre à chaque lettre — elle glisse sous l'œil — et saute
+  d'une ligne au moment du passage à la ligne sur téléphone ;
+- **le découpage passe par `Array.from`**, et non par un index de chaîne :
+  « qu'est-ce » porte une apostrophe typographique, et les caractères composés se
+  briseraient en plein milieu ;
+- **`prefers-reduced-motion` est respecté** : la phrase s'affiche alors d'un coup.
+
+Le curseur reste fixe pendant la frappe et ne clignote qu'une fois la phrase
+finie, comme un vrai curseur de saisie. L’écran s’effface tout seul après un temps
+de lecture, et un clic ou une touche coupe court. Le texte entier est porté par
+`aria-label` sur le conteneur : un lecteur d'écran l'énonce une fois, au lieu de
+bégayer à chaque lettre.
+
 ### Icônes
 
 [Phosphor Icons](https://phosphoricons.com) (licence MIT). Les pictogrammes
@@ -446,6 +471,14 @@ Les icônes de l'application elle-même viennent du même jeu — le cube Phosph
 sur fond orange — et se régénèrent avec `python3 scripts/generate-icons.py`
 (voir l'en-tête du script pour les deux dépendances Python). Les PNG sont
 versionnés : ce script ne tourne ni au build ni au déploiement.
+
+`favicon.ico` en fait partie, et empile cinq tailles (16 à 64 px) **redessinées
+chacune à sa taille** : laisser Pillow réduire une grande image donnerait un cube
+empâté à 16 px. Le cube y occupe aussi plus de place que dans les icônes
+d'application (74 % contre 62 %), sans quoi il ne resterait qu'une pastille orange
+indistincte dans l'onglet. Ce fichier compte : les navigateurs demandent
+`/favicon.ico` d'eux-mêmes, avant même de lire le HTML, et certains contextes
+(favoris, raccourcis Windows) ne savent lire que celui-là.
 
 Les emojis subsistent dans le **texte des notifications** (`🖨️`, `📦`, `💬`) :
 ce sont des messages Telegram ou ntfy en texte brut, où une icône vectorielle

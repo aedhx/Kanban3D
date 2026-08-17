@@ -50,11 +50,20 @@ export const metadata: Metadata = {
     description: DESCRIPTION,
     images: ['/og.png'],
   },
+  /*
+   * Du plus petit au plus grand. `favicon.ico` est déclaré en premier et empile
+   * plusieurs tailles : les navigateurs le demandent de toute façon d'eux-mêmes,
+   * avant même de lire ce HTML, et certains contextes hors navigateur (favoris,
+   * raccourcis) ne savent lire que celui-là.
+   */
   icons: {
     icon: [
+      { url: '/favicon.ico', sizes: '16x16 24x24 32x32 48x48 64x64' },
+      { url: '/icon-32.png', sizes: '32x32', type: 'image/png' },
       { url: '/icon-192.png', sizes: '192x192', type: 'image/png' },
       { url: '/icon-512.png', sizes: '512x512', type: 'image/png' },
     ],
+    shortcut: '/favicon.ico',
     apple: '/apple-icon.png',
   },
   appleWebApp: {
