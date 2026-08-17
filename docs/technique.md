@@ -132,6 +132,18 @@ Elles demandent Playwright, qui n'est pas une dépendance du projet :
 d'un vrai lien résolu par le serveur — ce que montrent les captures est donc ce
 que l'application produit réellement.
 
+Deux détails de ce duo : le jeu de démonstration affiche en clair la requête SQL
+qui recule une date de fin (l'API ne le permet pas, et c'est bien ainsi), et les
+deux captures de l'imprimante ne sont prises que si `PRINTER_DEMO_URL` désigne une
+source d'état — aucune adresse d'imprimante n'est codée en dur, elles sont
+sensibles.
+
+**Ne faites pas tourner deux `next dev` sur ce dossier en même temps.** Ils
+partagent `.next` et s'écrasent mutuellement : le symptôme est une page qui répond
+`404` ou `500` avec un `Cannot find module './331.js'` ou un `Unexpected end of JSON
+input`, sans rapport avec le code. Et un `npm run build` lancé pendant qu'un serveur
+de développement tourne produit exactement le même désordre.
+
 ---
 
 ## Comment ça marche
@@ -150,6 +162,10 @@ src/
     api/cards/[id]/comments/     le fil de discussion
     api/cards/[id]/photo/        la photo du résultat (octets, hors du tableau)
     api/auth/route.ts            POST le code -> cookie signé
+    api/printer/route.ts         GET le dernier état (rafraîchi si > 20 s) · PATCH la config
+    api/printer/test/route.ts    POST interroge sans rien enregistrer, et diagnostique
+    api/printer/webhook/route.ts POST les événements poussés par OctoEverywhere
+    reglages/page.tsx            les réglages de l'imprimante
   components/
     Board.tsx                    l'état du tableau, le rafraîchissement, dnd-kit
     Column.tsx  CardTile.tsx     une colonne, une carte
@@ -157,22 +173,27 @@ src/
     AddUrlBar.tsx                le champ de collage
     CommentThread.tsx            la discussion
     PhotoField.tsx               prise et envoi de la photo
+    PrinterStrip.tsx             le bandeau d'état, au-dessus des colonnes
+    PrinterSettings.tsx          le formulaire de l'imprimante
+    Greeting.tsx                 le mot d'accueil qui s'écrit
     Thumbnail.tsx                vignette, CDN, et repli nommé
     LoginForm.tsx                la saisie du code
     SetupNeeded.tsx              l'écran de diagnostic d'une base absente
     icons.ts                     tous les pictogrammes, sous des noms d'usage
   lib/
     metadata.ts                  les adaptateurs de plateformes — le cœur technique
+    printer.ts                   OctoEverywhere : URL, lecture, webhooks, redirections
+    printerView.ts               ce que le navigateur a le droit de savoir de la machine
     printInfo.ts                 mise en forme des durées, poids, prix, totaux
     photo.ts                     redimensionnement dans le navigateur
     board.ts  cards.ts           positions, déplacements, nettoyage des saisies
     auth.ts                      cookie HMAC
     notify.ts                    Telegram, ntfy, webhook
-    dates.ts  settings.ts        échéances, archivage, réglages d'environnement
+    dates.ts  settings.ts        archivage, réglages d'environnement
     images.ts  databaseUrl.ts    Image CDN de Netlify, noms de variables acceptés
     people.ts  useIdentity.ts    les deux prénoms, et lequel est cet appareil
   db/
-    schema.ts  queries.ts        les trois tables, et le décompte des messages
+    schema.ts  queries.ts        les tables, et le décompte des messages
 drizzle/                         les migrations, versionnées
 scripts/                         migration, test des plateformes, captures
 docs/images/                     les captures du README
@@ -390,18 +411,164 @@ dans les traces.
 Les notifications partent sur un canal commun, donc vous voyez aussi vos propres
 actions. C'est volontaire : ça vaut accusé de réception.
 
-### Échéances et archivage
+### Priorité et classement
 
-L'échéance est une `date` sans heure ni fuseau : « pour le 12 » ne doit pas
-dépendre du fuseau du lecteur. La carte affiche une formulation relative
-(« demain », « dans 5 j », « 4 j de retard »), mise en évidence dès que la date
-est passée, et masquée une fois la carte terminée.
+Trois niveaux stockés en entier — `0` tranquille, `1` normal, `2` urgent — et un
+défaut à `1`. `columnCards()` (`src/lib/board.ts`) trie « À imprimer » par priorité
+décroissante puis par `position` ; les deux autres colonnes gardent l'ordre manuel,
+qui y raconte autre chose (l'ordre de passage, l'ordre de finition).
+
+**Le piège, et il a mordu :** trier une colonne casse le glisser-déposer si les
+positions sont calculées d'après les voisins *affichés*. Une carte lâchée entre
+deux cartes d'un autre niveau reçoit une position cohérente avec ce qu'on voit à
+l'écran, mais incohérente avec le tri — au rechargement, elle est revenue à sa
+place. `resolveDrop()` reconstruit donc la liste telle qu'elle sera après le dépôt,
+puis lit les voisins **à l'intérieur de la bande de priorité visée** :
+
+```ts
+const bande = targetStatus === 'todo' ? après.filter((c) => c.priority === niveau) : après
+const i = bande.findIndex((card) => card.id === activeId)
+return {
+  status: targetStatus,
+  position: positionBetween(bande[i - 1]?.position, bande[i + 1]?.position),
+  ...(changeDeNiveau ? { priority: niveau } : {}),
+}
+```
+
+Conséquence voulue : faire monter une carte dans le bloc « Urgent » la rend
+urgente. Sans cela elle repartirait sous l'œil, ce qui est le défaut classique
+d'une colonne triée.
+
+L'échéance a été **retirée de l'interface** au profit de la priorité : la question
+n'était jamais « pour quand » mais « laquelle d'abord ». La colonne `due_date`
+reste en base, sans écran pour l'écrire — la supprimer coûterait une migration
+destructrice pour rien.
+
+### Multi-couleur
+
+`multi_color` (booléen) et `color_count` (entier facultatif). Aucune logique, juste
+une annonce : Alexandre voit avant de lancer s'il doit monter le Canvas, au lieu de
+le découvrir au premier changement de filament. `columnTotals()` le mentionne dès
+qu'une carte du lot le demande.
+
+### Archivage
 
 La colonne « Fait » grossit sans fin. Les cartes terminées depuis plus de 30
 jours passent derrière un lien « voir l'historique » ; c'est `done_at` qui en
 décide, horodaté à l'entrée en « Fait » et effacé si la carte en ressort.
 `updated_at` ne pourrait pas jouer ce rôle, la moindre correction le remettant à
 zéro.
+
+### L'imprimante, via OctoEverywhere
+
+**OctoPrint ne convient pas**, et ce n'est pas un choix : la Centauri Carbon
+n'expose pas de liaison série, OctoPrint ne sait donc pas lui parler.
+OctoEverywhere, si — son compagnon tourne sur le NAS et prend en charge les
+imprimantes Elegoo. Les deux noms se ressemblent, les deux logiciels non.
+
+#### Le « Live Link » et son API
+
+Un Live Link est une page publique en lecture seule qu'OctoEverywhere crée pour
+partager une imprimante : `https://octoeverywhere.com/live/<id>`. Cette page
+s'alimente d'une API que l'on peut appeler directement :
+
+```
+GET https://octoeverywhere.com/api/live/status?id=-<id>
+```
+
+Rien de tout cela n'est documenté publiquement ; c'est relevé dans le code de la
+page elle-même. Trois détails, tous vérifiés contre le service réel :
+
+1. **l'identifiant est préfixé** — d'un tiret pour un lien `/live/`, d'un point pour
+   un lien `/view/` (la « vue rapide »). Sans préfixe, l'API répond
+   `{"Status":400,"Error":"Invalid Id"}` ; avec le mauvais, `401` ;
+2. **l'hôte générique redirige** vers le serveur régional (`lon.octoeverywhere.com`
+   depuis l'Europe). Il faut donc suivre la redirection ;
+3. **aucune authentification** : l'identifiant du lien *est* le sésame. C'est ce qui
+   rend cette voie utilisable depuis un hébergeur — rien à ouvrir sur le réseau
+   d'Alexandre, rien à installer, et le lien se révoque d'un clic chez lui.
+
+Corollaire de ce troisième point : **cette adresse est un secret**. Elle donne
+l'état de la machine et l'accès à sa webcam à qui la possède. Elle n'a sa place ni
+dans le dépôt, ni dans une capture d'écran — d'où l'adresse d'exemple dans l'image
+du README, et la variable `PRINTER_DEMO_URL` de `scripts/screenshots.mjs`.
+
+La réponse porte `Status` (un libellé en clair, pas un énuméré), `StatusColor`,
+`Progress` (0–100, une décimale), `TimeElapsedSec`, `TimeRemainSec`, `IsPaused`,
+`IsInHostErrorState`, `IsTimeFlowing`, `FileName` et les températures buse et
+plateau. Pas de compte de couches, contrairement à l'autre API.
+
+#### Ce que l'application en fait
+
+`src/lib/printer.ts` convertit tout dans une seule forme (`PrinterReading`), en
+reconnaissant la réponse **aux champs présents** plutôt qu'à l'URL appelée : c'est
+la réponse qui décide, pas notre supposition. Deux formes sont acceptées, celle du
+Live Link et celle des « Shared Connection »
+(`/octoeverywhere-command-api/status`, dont l'authentification n'est, elle, pas
+élucidée), plus les webhooks entrants.
+
+Trois décisions valent d'être notées :
+
+- **l'état est affiché tel quel quand on ne le connaît pas.** `Status` est un
+  libellé humain, et sa liste n'est pas publiée : `printerStateLabel()` traduit ce
+  qu'il connaît, reconnaît les familles (`… Connection Lost` → « liaison perdue »)
+  et **laisse passer le reste en anglais**. Le site officiel fait exactement pareil.
+  Un « état inconnu » n'apprendrait rien à personne ;
+- **« imprime-t-elle ? » est tranché côté serveur**, et stocké (`printing`). Ni le
+  libellé ni le chronomètre ne suffisent seuls — le libellé peut être inconnu, et un
+  temps qui s'écoule ne dit pas si la machine est en pause — donc on croise les deux,
+  une pause ou une erreur d'hôte tranchant dans tous les cas ;
+- **les deux secrets ne repartent jamais vers le navigateur.** L'API renvoie
+  `hasSecret` / `hasWebhookToken`, le champ affiche « configurée », on ne peut que
+  remplacer.
+
+#### Les redirections, et la limite du garde-fou
+
+`isPubliclyRoutable()` (partagé avec la lecture des métadonnées) refuse les adresses
+privées : c'est le serveur qui va chercher une URL saisie par l'utilisateur, de quoi
+sonder le réseau de l'hébergeur. Mais **contrôler l'entrée ne suffit pas** : une URL
+publique qui répond `302 → http://10.0.0.7/` ferait exactement ce qu'on voulait
+empêcher. Les redirections sont donc suivies à la main (`redirect: 'manual'`), trois
+au plus, et **chaque saut est revalidé**. Un parcours de test le vérifie, avec un
+nom d'apparence publique qui redirige vers une adresse interne.
+
+Limite assumée : le garde-fou lit le nom d'hôte, il ne résout pas le DNS. Un nom
+public pointant vers une adresse privée passe donc. Résoudre soi-même n'y suffirait
+pas complètement — entre la vérification et l'appel, la résolution peut changer — et
+le jeu n'en vaut pas la chandelle ici : les seules URL que le serveur va chercher
+sont un lien de modèle et une adresse d'imprimante, tous deux saisis derrière le
+code d'accès.
+
+`PRINTER_ALLOW_PRIVATE=1` lève l'interdiction, pour le cas réel d'une application
+hébergée chez soi sur le même réseau que l'imprimante. Jamais actif par défaut.
+
+#### Fraîcheur
+
+`GET /api/printer` ne rappelle la machine que si la ligne a plus de 20 secondes :
+le tableau se recharge toutes les dix secondes, à deux, sur plusieurs onglets — sans
+ce cache, le NAS serait interrogé des dizaines de fois par minute. Le bandeau, lui,
+demande **une fois à l'arrivée** puis toutes les 20 secondes : le premier rendu vient
+de la base, et l'état qui y dort peut avoir plusieurs minutes — attendre le premier
+tour d'horloge afficherait « terminée » sur une impression en cours.
+
+Machine injoignable : l'erreur est enregistrée mais **l'état précédent est
+conservé**. « il y a 4 min, 47 % » vaut mieux qu'un écran vide, et le bandeau
+affiche l'âge dès qu'il dépasse 90 secondes.
+
+Le webhook (`POST /api/printer/webhook?token=…`) est la voie de secours. Son jeton
+est comparé en temps constant, sur des empreintes SHA-256, comme le code d'accès —
+c'est la seule route de l'application qui n'exige pas le cookie de session, puisque
+c'est un service qui l'appelle. Il ne remplace que les champs qu'il porte : un
+événement de progression ne dit rien des températures, et les écraser par des `null`
+ferait clignoter le bandeau.
+
+#### Ce que je n'ai pas pu vérifier
+
+L'authentification de l'API des « Shared Connection » reste inconnue : la page qui
+devrait l'expliquer ne l'explique pas, et le Live Link ayant réglé le problème, il
+n'y avait plus de raison de deviner. Le bouton « Tester la connexion » rapporte la
+réponse brute — code HTTP et début du corps — pour trancher en une minute le jour où
+la question se reposera.
 
 ### L'image de partage
 
@@ -480,6 +647,20 @@ indistincte dans l'onglet. Ce fichier compte : les navigateurs demandent
 `/favicon.ico` d'eux-mêmes, avant même de lire le HTML, et certains contextes
 (favoris, raccourcis Windows) ne savent lire que celui-là.
 
+Deux pièges rencontrés, tous deux silencieux :
+
+- **`@phosphor-icons/react` ne s'importe pas dans un composant serveur.** La
+  bibliothèque s'appuie sur un contexte React, et l'importer depuis un fichier sans
+  `'use client'` fait échouer la construction sur un `createContext is not a
+  function` peu bavard. `src/app/reglages/page.tsx` affiche donc un chevron en texte
+  (`‹`) plutôt qu'une icône ;
+- **`favicon.ico` ne doit exister qu'une fois.** `create-next-app` en pose un dans
+  `src/app/`, où Next le traite comme un fichier de métadonnées et le sert sur
+  `/favicon.ico` ; celui de `public/` sert la même adresse. Les deux réunis donnent
+  un `500` en développement (« A conflicting public file and page file was found »),
+  et en production c'est `public/` qui gagne — donc tout marche en ligne pendant que
+  le développement casse. Seul celui de `public/` est conservé.
+
 Les emojis subsistent dans le **texte des notifications** (`🖨️`, `📦`, `💬`) :
 ce sont des messages Telegram ou ntfy en texte brut, où une icône vectorielle
 n'aurait pas de sens.
@@ -532,9 +713,12 @@ bout, sur un Postgres local et un vrai navigateur, avec des captures à l'appui.
 | Les plateformes répondent comme prévu | `npm run test:platforms`, qui les interroge réellement |
 | Créer, modifier, déplacer, supprimer une carte | parcours Playwright, avec rechargement pour vérifier la persistance |
 | Réordonner dans une colonne | positions relues après coup, et vérifiées distinctes |
-| Discussion, échéances, archivage | idem, y compris le compteur de messages |
+| Discussion et archivage | idem, y compris le compteur de messages |
 | Coût d'impression et prix | valeurs saisies, effacées, bornées, et leur mise en forme |
 | Photo | dépôt, remplacement, cache, format refusé, suppression en cascade |
+| Priorité | les trois niveaux, le classement, un glisser dans un niveau qui tient au rechargement, un glisser vers un autre niveau qui change la priorité |
+| Multi-couleur | badge, compteur borné, mention dans le total de colonne |
+| Imprimante | les deux formes de réponse et la construction de l'URL hors ligne ; puis, contre un faux OctoEverywhere servant la réponse réelle : réglages, test, bandeau, carte liée par son nom de fichier, webhook, jeton faux, secret jamais renvoyé, machine éteinte, adresse privée refusée, **redirection vers le réseau interne refusée** |
 | Contraste AA dans les deux thèmes | mesure du rapport réel sur les éléments rendus |
 | Mobile | 375 / 393 / 430 px : débordement, cibles tactiles, taille des champs |
 

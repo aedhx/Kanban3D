@@ -23,22 +23,21 @@ const H = { 'content-type': 'application/json', cookie }
 const { cards: anciennes } = await (await fetch(`${BASE}/api/cards`, { headers: H })).json()
 for (const c of anciennes) await fetch(`${BASE}/api/cards/${c.id}`, { method: 'DELETE', headers: H })
 
-const jour = (n) => {
-  const d = new Date()
-  d.setDate(d.getDate() + n)
-  return d.toISOString().slice(0, 10)
-}
-
 const DEMANDES = [
   {
     url: 'https://www.printables.com/model/133116-ikea-skadis-headphone-holder',
     par: 'Antoine',
-    edits: { color: 'Noir', notes: 'Pour le casque du bureau, celui qui traîne toujours.' },
+    edits: {
+      color: 'Noir',
+      notes: 'Pour le casque du bureau, celui qui traîne toujours.',
+      multiColor: true,
+      colorCount: 3,
+    },
   },
   {
     url: 'https://www.printables.com/model/430773-exam-roulette',
     par: 'Antoine',
-    edits: { quantity: 2, color: 'Rouge', dueDate: jour(9) },
+    edits: { quantity: 2, color: 'Rouge', priority: 0 },
   },
   {
     url: 'https://www.printables.com/model/72753-ikea-skadis-display-shelf/files',
@@ -46,7 +45,7 @@ const DEMANDES = [
     edits: {
       color: 'Blanc',
       notes: 'Version large, celle avec le crochet renforcé.',
-      dueDate: jour(2),
+      priority: 2,
       printMinutes: 214,
       filamentGrams: 52,
       material: 'PETG',
@@ -104,11 +103,18 @@ for (const d of DEMANDES) {
   )
 }
 
-// Une carte terminée il y a longtemps, pour illustrer l'archive.
+/*
+ * Une carte terminée il y a longtemps, pour illustrer l'archive. L'API ne permet
+ * pas de reculer une date de fin — et c'est bien ainsi — donc cette dernière
+ * touche se fait en SQL. La commande est écrite en clair : la deviner à partir
+ * d'un identifiant seul faisait perdre cinq minutes à chaque fois.
+ */
 const vieille = creees.find((c) => c.termineeDepuis)
 if (vieille) {
-  console.log(`\nRecule la fin de « ${vieille.title} » de ${vieille.termineeDepuis} jours (SQL direct).`)
-  console.log(vieille.id)
+  console.log(`\nPour que « ${vieille.title} » tombe dans l'archive, à jouer sur la base :`)
+  console.log(
+    `  UPDATE cards SET done_at = now() - interval '${vieille.termineeDepuis} days' WHERE id = '${vieille.id}';`,
+  )
 }
 
 // Un message sur la carte du panneau

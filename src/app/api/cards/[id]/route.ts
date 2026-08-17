@@ -8,7 +8,7 @@ import {
   LIMITS,
   isStatus,
   normalizeCount,
-  normalizeDate,
+  normalizePriority,
   normalizeQuantity,
   normalizeText,
 } from '@/lib/cards'
@@ -79,7 +79,9 @@ export async function PATCH(request: Request, { params }: Params) {
   if ('color' in body) updates.color = normalizeText(body.color, 60)
   if ('notes' in body) updates.notes = normalizeText(body.notes)
   if ('quantity' in body) updates.quantity = normalizeQuantity(body.quantity)
-  if ('dueDate' in body) updates.dueDate = normalizeDate(body.dueDate)
+  if ('priority' in body) updates.priority = normalizePriority(body.priority)
+  if ('multiColor' in body) updates.multiColor = body.multiColor === true
+  if ('colorCount' in body) updates.colorCount = normalizeCount(body.colorCount, LIMITS.colorCount)
   if ('printMinutes' in body)
     updates.printMinutes = normalizeCount(body.printMinutes, LIMITS.printMinutes)
   if ('filamentGrams' in body)

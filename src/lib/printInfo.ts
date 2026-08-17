@@ -63,14 +63,16 @@ export function formatEuros(amount: number): string {
  * filament que ça demande — quantités comprises, cette fois.
  */
 export function columnTotals(
-  cards: Array<PrintFields & { quantity: number }>,
+  cards: Array<PrintFields & { quantity: number; multiColor?: boolean }>,
   pricePerKg: number | null,
 ): string[] {
   let minutes = 0
   let grams = 0
+  let canvas = 0
   for (const card of cards) {
     minutes += (card.printMinutes ?? 0) * card.quantity
     grams += (card.filamentGrams ?? 0) * card.quantity
+    if (card.multiColor) canvas += 1
   }
 
   const parts: string[] = []
@@ -80,6 +82,8 @@ export function columnTotals(
   if (filament) parts.push(filament)
   const cost = formatFilamentCost(grams, pricePerKg)
   if (cost) parts.push(cost)
+  // Prévient qu'il faudra monter le Canvas avant de lancer la série.
+  if (canvas > 0) parts.push(canvas === 1 ? '1 en multi-couleur' : `${canvas} en multi-couleur`)
   return parts
 }
 

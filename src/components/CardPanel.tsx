@@ -1,9 +1,15 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { STATUSES, STATUS_LABELS, type Status } from '@/db/schema'
+import {
+  PRIORITIES,
+  PRIORITY_LABELS,
+  STATUSES,
+  STATUS_LABELS,
+  type Priority,
+  type Status,
+} from '@/db/schema'
 import type { BoardCard } from '@/lib/board'
-import { formatDate, formatDue } from '@/lib/dates'
 import { formatFilamentCost, printCostParts } from '@/lib/printInfo'
 import { CommentThread } from './CommentThread'
 import { PhotoField } from './PhotoField'
@@ -64,7 +70,9 @@ export function CardPanel({
   const [quantity, setQuantity] = useState(card.quantity)
   const [color, setColor] = useState(card.color ?? '')
   const [notes, setNotes] = useState(card.notes ?? '')
-  const [dueDate, setDueDate] = useState(card.dueDate ?? '')
+  const [priority, setPriority] = useState<Priority>(card.priority)
+  const [multiColor, setMultiColor] = useState(card.multiColor)
+  const [colorCount, setColorCount] = useState(numberField(card.colorCount))
   // Champs d'impression en chaînes, et non en nombres : c'est le seul moyen de
   // laisser un champ vide (« pas renseigné ») sans le confondre avec zéro.
   const [printMinutes, setPrintMinutes] = useState(numberField(card.printMinutes))
@@ -91,7 +99,9 @@ export function CardPanel({
     setQuantity(card.quantity)
     setColor(card.color ?? '')
     setNotes(card.notes ?? '')
-    setDueDate(card.dueDate ?? '')
+    setPriority(card.priority)
+    setMultiColor(card.multiColor)
+    setColorCount(numberField(card.colorCount))
     setPrintMinutes(numberField(card.printMinutes))
     setFilamentGrams(numberField(card.filamentGrams))
     setMaterial(card.material ?? '')
@@ -138,7 +148,9 @@ export function CardPanel({
         quantity,
         color: color.trim() || null,
         notes: notes.trim() || null,
-        dueDate: dueDate || null,
+        priority,
+        multiColor,
+        colorCount: multiColor ? colorCount || null : null,
         printMinutes: printMinutes || null,
         filamentGrams: filamentGrams || null,
         material: material.trim() || null,
@@ -244,21 +256,70 @@ export function CardPanel({
             </div>
           </div>
 
-          <label htmlFor="m-due" className="mt-3 mb-1 block text-xs font-medium text-muted">
-            Échéance souhaitée
-          </label>
-          <input
-            id="m-due"
-            type="date"
-            value={dueDate}
-            onChange={(e) => setDueDate(e.target.value)}
-            className="w-full rounded-lg border border-line bg-canvas px-3 py-2 text-sm outline-none focus:border-accent"
-          />
-          {dueDate && (
-            <p className="mt-1 text-xs text-muted">
-              {formatDate(dueDate)} · {formatDue(dueDate)}
-            </p>
-          )}
+          {/*
+            Trois boutons plutôt qu'une liste déroulante : pour trois valeurs,
+            c'est un geste au lieu de deux, et l'état se lit sans rien ouvrir.
+            Enregistré au clic — attendre « Enregistrer » pour changer un rang
+            n'aurait aucun sens quand c'est justement ce qu'on vient régler.
+          */}
+          <fieldset className="mt-3">
+            <legend className="mb-1.5 text-xs font-medium text-muted">Priorité</legend>
+            <div className="flex gap-1.5">
+              {[...PRIORITIES].reverse().map((niveau) => (
+                <button
+                  key={niveau}
+                  type="button"
+                  data-testid={`priority-${niveau}`}
+                  onClick={() => {
+                    setPriority(niveau)
+                    void onSave(card.id, { priority: niveau })
+                  }}
+                  aria-pressed={priority === niveau}
+                  className={[
+                    'flex-1 rounded-lg border px-2 py-2 text-xs transition-colors',
+                    priority === niveau
+                      ? 'border-accent bg-accent/10 font-medium text-accent-deep'
+                      : 'border-line text-muted hover:border-accent',
+                  ].join(' ')}
+                >
+                  {PRIORITY_LABELS[niveau]}
+                </button>
+              ))}
+            </div>
+          </fieldset>
+
+          {/* Multi-couleur : ce qui décide si le Canvas doit être monté. */}
+          <div className="mt-3 flex items-center gap-3">
+            <label className="inline-flex flex-1 items-center gap-2 text-sm">
+              <input
+                id="m-multicolor"
+                type="checkbox"
+                checked={multiColor}
+                onChange={(e) => setMultiColor(e.target.checked)}
+                data-keep-size
+                className="h-4 w-4 accent-accent"
+              />
+              Multi-couleur <span className="text-xs text-muted">(Canvas)</span>
+            </label>
+            {multiColor && (
+              <div className="w-28">
+                <label htmlFor="m-color-count" className="sr-only">
+                  Nombre de couleurs
+                </label>
+                <input
+                  id="m-color-count"
+                  type="number"
+                  min={2}
+                  max={16}
+                  inputMode="numeric"
+                  value={colorCount}
+                  onChange={(e) => setColorCount(e.target.value)}
+                  placeholder="couleurs"
+                  className={FIELD}
+                />
+              </div>
+            )}
+          </div>
 
           <label htmlFor="m-notes" className="mt-3 mb-1 block text-xs font-medium text-muted">
             Remarque
