@@ -41,13 +41,12 @@ function CardContent({ card }: { card: BoardCard }) {
 
   return (
     <div className="flex gap-3 p-3">
-      {card.imageUrl && (
-        <Thumbnail
-          src={card.imageUrl}
-          size={160}
-          className="h-14 w-14 shrink-0 rounded-lg border border-line object-cover"
-        />
-      )}
+      <Thumbnail
+        src={card.imageUrl}
+        label={card.title}
+        size={160}
+        className="h-14 w-14 shrink-0 rounded-lg border border-line object-cover text-lg"
+      />
 
       <div className="min-w-0 flex-1">
         <p className="line-clamp-2 text-sm leading-snug font-medium">{card.title}</p>

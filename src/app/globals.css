@@ -1,28 +1,45 @@
 @import 'tailwindcss';
 
+/*
+ * Palette claire. `@theme` doit rester au niveau racine : imbriqué dans une
+ * media query, Tailwind v4 l'émet quand même sans condition, et le thème ne
+ * suivrait plus la préférence du système. Le thème sombre se fait donc en
+ * redéfinissant les variables générées, en CSS ordinaire.
+ */
 @theme {
   --color-surface: #ffffff;
   --color-canvas: #f4f5f7;
   --color-line: #e3e5e9;
   --color-ink: #16181d;
-  --color-muted: #6b7280;
-  --color-accent: #f0761a;
+  /* Assez sombre pour rester lisible sur --color-canvas, pas seulement sur blanc. */
+  --color-muted: #686f7d;
+  /*
+   * L'accent sert à la fois de couleur de texte sur les fonds clairs et de fond
+   * de bouton. En clair il doit donc être assez sombre pour porter du blanc ; en
+   * sombre c'est l'inverse, l'accent devient vif et reçoit du texte foncé.
+   * --color-accent-ink est la couleur du texte posé sur un fond accent.
+   */
+  --color-accent: #b8540a;
+  --color-accent-ink: #ffffff;
 }
 
 @media (prefers-color-scheme: dark) {
-  @theme {
+  :root {
     --color-surface: #191b21;
     --color-canvas: #101216;
     --color-line: #2a2e37;
     --color-ink: #eceef2;
     --color-muted: #9099a8;
     --color-accent: #ff8b33;
+    --color-accent-ink: #16181d;
   }
 }
 
 html,
 body {
   height: 100%;
+  /* Aligne les contrôles natifs (champs, sélecteurs de nombre) sur le thème. */
+  color-scheme: light dark;
 }
 
 body {
@@ -30,6 +47,23 @@ body {
   color: var(--color-ink);
   -webkit-tap-highlight-color: transparent;
   overscroll-behavior-y: none;
+}
+
+/*
+ * Pastille affichée à la place d'une vignette absente ou injoignable. La teinte
+ * vient du nom du modèle (--thumb-hue), pour que les cartes restent
+ * distinguables d'un coup d'œil. Les niveaux de luminosité sont choisis pour
+ * rester lisibles sur les deux fonds (contraste mesuré > 4,5).
+ */
+.thumb-fallback {
+  background-color: hsl(var(--thumb-hue) 48% 52% / 0.16);
+  color: hsl(var(--thumb-hue) 55% 28%);
+}
+
+@media (prefers-color-scheme: dark) {
+  .thumb-fallback {
+    color: hsl(var(--thumb-hue) 55% 74%);
+  }
 }
 
 /* Empêche le navigateur de faire défiler la page pendant un glisser tactile. */

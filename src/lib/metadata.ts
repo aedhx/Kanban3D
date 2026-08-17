@@ -169,21 +169,81 @@ function parseJsonLdAuthor(html: string): string | undefined {
   return undefined
 }
 
-/** Titre de repli quand on n'a rien pu récupérer : mieux que d'afficher l'URL brute. */
+const PLATFORMS: Array<{ host: RegExp; label: string }> = [
+  { host: /(^|\.)printables\.com$/i, label: 'Printables' },
+  { host: /(^|\.)makerworld\.com$/i, label: 'MakerWorld' },
+  { host: /(^|\.)thingiverse\.com$/i, label: 'Thingiverse' },
+  { host: /(^|\.)cults3d\.com$/i, label: 'Cults3D' },
+]
+
+export function platformLabel(hostname: string): string | undefined {
+  return PLATFORMS.find((platform) => platform.host.test(hostname))?.label
+}
+
+/**
+ * Segments d'URL qui ne décrivent pas le modèle : mots de structure des sites et
+ * codes de langue. Les sauter évite d'intituler une carte « Models ».
+ */
+const STRUCTURAL_SEGMENTS = new Set([
+  'model',
+  'models',
+  '3d model',
+  '3d models',
+  'thing',
+  'things',
+  'print',
+  'prints',
+  'design',
+  'designs',
+  'download',
+  'downloads',
+  'file',
+  'files',
+])
+
+/**
+ * Nom de repli quand la plateforme n'a rien voulu dire. C'est le champ qui
+ * compte le plus : une carte sans nom lisible est inexploitable. On remonte donc
+ * l'URL segment par segment, du plus précis au plus général, et on se rabat en
+ * dernier recours sur « Plateforme 430773 » plutôt que sur un nom de domaine nu.
+ */
 function fallbackTitle(url: URL): string {
-  const lastSegment = url.pathname.split('/').filter(Boolean).pop()
-  if (lastSegment) {
-    const cleaned = decodeURIComponent(lastSegment)
-      .replace(/\.[a-z0-9]{2,4}$/i, '')
-      .replace(/^thing:/, '')
-      .replace(/^\d+[-_]/, '')
-      .replace(/[-_]+/g, ' ')
-      .trim()
-    if (cleaned && !/^\d+$/.test(cleaned)) {
-      return cleaned.charAt(0).toUpperCase() + cleaned.slice(1)
+  const platform = platformLabel(url.hostname)
+  const segments = url.pathname.split('/').filter(Boolean)
+  let numericId: string | undefined
+
+  for (let i = segments.length - 1; i >= 0; i--) {
+    let raw: string
+    try {
+      raw = decodeURIComponent(segments[i])
+    } catch {
+      raw = segments[i] // séquence d'échappement invalide
     }
+
+    const cleaned = raw
+      .replace(/^thing:/i, '') // Thingiverse : /thing:763622
+      .replace(/\.[a-z0-9]{2,4}$/i, '') // extension de fichier
+      .replace(/^\d+[-_]/, '') // Printables : /model/430773-exam-roulette
+      .replace(/[-_+]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+
+    if (!cleaned) continue
+
+    // Un identifiant seul ne fait pas un nom, mais on le garde sous la main.
+    if (/^\d+$/.test(cleaned)) {
+      numericId ??= cleaned
+      continue
+    }
+
+    const lower = cleaned.toLowerCase()
+    if (STRUCTURAL_SEGMENTS.has(lower) || /^[a-z]{2}$/.test(lower)) continue
+
+    return cleaned.charAt(0).toUpperCase() + cleaned.slice(1)
   }
-  return url.hostname.replace(/^www\./, '')
+
+  if (numericId) return platform ? `${platform} ${numericId}` : `Modèle ${numericId}`
+  return platform ?? url.hostname.replace(/^www\./, '')
 }
 
 /* ------------------------------------------------------------------ */
@@ -323,7 +383,7 @@ export async function fetchModelMetadata(rawUrl: string): Promise<ModelMetadata>
   }
 
   if (!isPubliclyRoutable(url)) {
-    return { title: fallbackTitle(url), resolved: false }
+    return { title: fallbackTitle(url), source: platformLabel(url.hostname), resolved: false }
   }
 
   const host = url.hostname.toLowerCase().replace(/^www\./, '')
@@ -350,5 +410,7 @@ export async function fetchModelMetadata(rawUrl: string): Promise<ModelMetadata>
     }
   }
 
-  return { title: fallbackTitle(url), resolved: false }
+  // Même sans réponse de la plateforme, on connaît son nom par le domaine : la
+  // carte garde donc son badge « Printables », « Cults3D »…
+  return { title: fallbackTitle(url), source: platformLabel(url.hostname), resolved: false }
 }

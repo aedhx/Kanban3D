@@ -147,17 +147,12 @@ export function AddCardForm({ onCreate }: { onCreate: (input: NewCardInput) => P
 
       {preview && !looking && (
         <div className="mt-3 flex items-center gap-3 rounded-lg border border-line bg-canvas p-2">
-          {preview.imageUrl ? (
-            <Thumbnail
-              src={preview.imageUrl}
-              size={128}
-              className="h-12 w-12 shrink-0 rounded object-cover"
-            />
-          ) : (
-            <div className="grid h-12 w-12 shrink-0 place-items-center rounded bg-line text-lg">
-              🧩
-            </div>
-          )}
+          <Thumbnail
+            src={preview.imageUrl}
+            label={preview.title}
+            size={128}
+            className="h-12 w-12 shrink-0 rounded border border-line object-cover"
+          />
           <div className="min-w-0 text-xs">
             <p className="truncate font-medium text-ink">{preview.title}</p>
             <p className="truncate text-muted">
@@ -240,7 +235,7 @@ export function AddCardForm({ onCreate }: { onCreate: (input: NewCardInput) => P
         <button
           type="submit"
           disabled={saving}
-          className="flex-1 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white disabled:opacity-40"
+          className="flex-1 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-ink disabled:opacity-40"
         >
           {saving ? 'Ajout…' : 'Ajouter au tableau'}
         </button>

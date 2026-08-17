@@ -72,7 +72,7 @@ export function LoginForm() {
         <button
           type="submit"
           disabled={busy || !pin}
-          className="mt-5 w-full rounded-lg bg-accent px-4 py-3 font-medium text-white transition-opacity disabled:opacity-40"
+          className="mt-5 w-full rounded-lg bg-accent px-4 py-3 font-medium text-accent-ink transition-opacity disabled:opacity-40"
         >
           {busy ? 'Vérification…' : 'Entrer'}
         </button>

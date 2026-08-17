@@ -63,13 +63,12 @@ export function CardModal({ card, onClose, onSave, onMove, onDelete }: Props) {
         className="max-h-[90dvh] w-full max-w-md overflow-y-auto rounded-t-2xl border border-line bg-surface p-5 shadow-xl sm:rounded-2xl"
       >
         <div className="flex items-start gap-3">
-          {card.imageUrl && (
-            <Thumbnail
-              src={card.imageUrl}
-              size={192}
-              className="h-16 w-16 shrink-0 rounded-lg border border-line object-cover"
-            />
-          )}
+          <Thumbnail
+            src={card.imageUrl}
+            label={card.title}
+            size={192}
+            className="h-16 w-16 shrink-0 rounded-lg border border-line object-cover text-xl"
+          />
           <div className="min-w-0 flex-1 text-xs text-muted">
             <p>
               Demandé par <span className="font-medium text-ink">{card.requestedBy}</span>
@@ -173,7 +172,7 @@ export function CardModal({ card, onClose, onSave, onMove, onDelete }: Props) {
             <button
               type="submit"
               disabled={busy || !title.trim()}
-              className="flex-1 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white disabled:opacity-40"
+              className="flex-1 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-ink disabled:opacity-40"
             >
               {busy ? 'Enregistrement…' : 'Enregistrer'}
             </button>
