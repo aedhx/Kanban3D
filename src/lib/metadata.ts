@@ -338,11 +338,15 @@ function fallbackTitle(url: URL): string {
       .replace(/^thing:/i, '') // Thingiverse : /thing:763622
       .replace(/\.[a-z0-9]{2,4}$/i, '') // extension de fichier
       .replace(/^\d+[-_]/, '') // Printables : /model/430773-exam-roulette
+      // Thangs met l'identifiant à la fin : /3d-model/Nom du modèle-1501622.
+      // Quatre chiffres au moins, pour ne pas manger le « -2 » d'une version.
+      .replace(/[-_]\d{4,}$/, '')
       .replace(/[-_+]+/g, ' ')
       .replace(/\s+/g, ' ')
       .trim()
 
-    if (!cleaned) continue
+    // Une lettre seule ne nomme rien : c'est le « /m/ » d'un lien raccourci.
+    if (cleaned.length <= 1) continue
 
     // Un identifiant seul ne fait pas un nom, mais on le garde sous la main.
     if (/^\d+$/.test(cleaned)) {

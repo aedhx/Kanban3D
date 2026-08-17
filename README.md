@@ -31,7 +31,7 @@ devient simplement le titre, pour une demande sans modèle en ligne.
 | --- | :---: | :---: |
 | **Printables** | ✔ | ✔ |
 | **MakerWorld** | ✔ | ✔ |
-| **Thangs** (liens `than.gs` compris) | ✔ | — |
+| **Thangs** (liens `than.gs` compris) | ✔ &nbsp;*(bloqué depuis l'hébergeur, voir plus bas)* | — |
 | **Thingiverse** | ✔ &nbsp;*(jeton requis en ligne, voir plus bas)* | — |
 | **Cults3D** | ✔ | — |
 | **MyMiniFactory** | titre et image | — |
@@ -368,19 +368,32 @@ Deux pièges de lecture, rencontrés pour de vrai :
   toutes ses fiches. Un titre égal au nom de la plateforme est donc refusé, et
   l'URL fournit un meilleur nom : « Star wars x wing ».
 
-### Le cas Thingiverse
+### Les plateformes qui refusent les serveurs
 
-Thingiverse est la seule plateforme dont les pages de modèles sont **bloquées
-lorsqu'elles sont demandées depuis un hébergeur**. Mesuré sur la production : la
-page d'accueil du site répond, les pages `/thing:*` non, tandis que Printables et
-Cults3D passent sans problème. Depuis un poste de développement tout fonctionne —
-c'est pourquoi la panne ne se voit qu'en ligne, tests verts à l'appui.
+Deux plateformes filtrent selon l'adresse qui appelle, et **bloquent les
+hébergeurs**. Mesuré sur la production, pas déduit : depuis Netlify, la page
+d'accueil de Thingiverse répond mais pas ses pages `/thing:*`, et `thangs.com` ne
+répond pas du tout — tandis que Printables, MakerWorld, Cults3D et MyMiniFactory
+passent sans problème. Depuis un poste de développement tout fonctionne, c'est
+pourquoi la panne ne se voit qu'en ligne, tests verts à l'appui.
 
-Le remède est son API officielle : créez une application sur
+**Thingiverse** a un remède : son API officielle. Créez une application sur
 [thingiverse.com/apps/create](https://www.thingiverse.com/apps/create) (gratuit,
 immédiat), relevez l'« App Token » et posez-le dans `THINGIVERSE_TOKEN`. Il est
-alors essayé **avant** la lecture de page. Sans jeton, rien ne casse : la carte
-arrive nommée « Thingiverse 5564110 », à renommer dans le panneau.
+alors essayé **avant** la lecture de page.
+
+**Thangs** n'en a pas : son API est sur le domaine bloqué, et il n'existe pas de
+jeton à demander. Un lien Thangs collé depuis le téléphone donne donc une carte
+sans image ni auteur — mais avec le bon titre, l'adresse le contenant :
+`…/3d-model/Customizable Alphabet Clicker & Keychain-1501622` devient
+« Customizable Alphabet Clicker & Keychain ».
+
+C'est tout l'intérêt du repli : il n'échoue jamais, et il travaille l'adresse
+plutôt que d'abandonner. L'identifiant de fin est retiré (au moins quatre
+chiffres, pour ne pas manger le « v2 » d'une version), les segments d'un seul
+caractère sont sautés — sans quoi un lien court `than.gs/m/1501622` donnerait une
+carte nommée « M » — et le nom de la plateforme sert de dernier recours :
+« Thangs 1501622 » plutôt qu'un domaine nu.
 
 ### Coût d'impression
 
