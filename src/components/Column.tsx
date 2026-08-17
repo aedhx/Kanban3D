@@ -7,6 +7,7 @@ import { STATUS_LABELS, type Status } from '@/db/schema'
 import type { BoardCard } from '@/lib/board'
 import { ARCHIVE_AFTER_DAYS, isArchived } from '@/lib/dates'
 import { columnTotals } from '@/lib/printInfo'
+import { looksLikeSameJob } from '@/lib/printer'
 import { CardTile } from './CardTile'
 import { Thumbnail } from './Thumbnail'
 
@@ -15,11 +16,21 @@ type Props = {
   cards: BoardCard[]
   selectedId: string | null
   filamentPricePerKg: number | null
+  /** Impression en cours sur la machine, s'il y en a une dans cette colonne. */
+  printing: { fileName: string | null; progress: number } | null
   onOpen: (card: BoardCard) => void
   onMove: (card: BoardCard, status: Status) => void
 }
 
-export function Column({ status, cards, selectedId, filamentPricePerKg, onOpen, onMove }: Props) {
+export function Column({
+  status,
+  cards,
+  selectedId,
+  filamentPricePerKg,
+  printing,
+  onOpen,
+  onMove,
+}: Props) {
   // La colonne est elle-même une cible de dépôt : sans cela, impossible de
   // déposer une carte dans une colonne vide.
   const { setNodeRef, isOver } = useDroppable({ id: status })
@@ -75,7 +86,8 @@ export function Column({ status, cards, selectedId, filamentPricePerKg, onOpen, 
           <button
             type="button"
             onClick={() => setShowArchived((current) => !current)}
-            className="mb-2 w-full rounded-lg px-2 py-1.5 text-xs text-muted transition-colors hover:text-accent"
+            // `min-h-10` sur mobile : au doigt, 28 px de haut se rate une fois sur deux.
+            className="mb-2 min-h-10 w-full rounded-lg px-2 py-1.5 text-xs text-muted transition-colors hover:text-accent sm:min-h-0"
           >
             {showArchived
               ? 'Masquer l’historique'
@@ -96,6 +108,11 @@ export function Column({ status, cards, selectedId, filamentPricePerKg, onOpen, 
                 card={card}
                 selected={card.id === selectedId}
                 filamentPricePerKg={filamentPricePerKg}
+                printProgress={
+                  printing && looksLikeSameJob(printing.fileName, card.title)
+                    ? printing.progress
+                    : null
+                }
                 onOpen={onOpen}
                 onMove={onMove}
               />

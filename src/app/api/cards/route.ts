@@ -9,7 +9,7 @@ import {
   POSITION_STEP,
   isStatus,
   normalizeCount,
-  normalizeDate,
+  normalizePriority,
   normalizeQuantity,
   normalizeText,
 } from '@/lib/cards'
@@ -82,7 +82,9 @@ export async function POST(request: Request) {
       quantity: normalizeQuantity(body.quantity),
       color: normalizeText(body.color, 60),
       notes: normalizeText(body.notes),
-      dueDate: normalizeDate(body.dueDate),
+      priority: normalizePriority(body.priority),
+      multiColor: body.multiColor === true,
+      colorCount: normalizeCount(body.colorCount, LIMITS.colorCount),
       // Ce que coûte l'impression : la saisie prime, la plateforme complète.
       printMinutes:
         normalizeCount(body.printMinutes, LIMITS.printMinutes) ?? resolved?.printMinutes ?? null,

@@ -63,7 +63,7 @@ const MAX_DESCRIPTION = 300
  * serveur qui va la chercher. Sans ce garde-fou, on pourrait s'en servir pour
  * sonder le réseau privé de l'hébergeur.
  */
-function isPubliclyRoutable(url: URL): boolean {
+export function isPubliclyRoutable(url: URL): boolean {
   if (url.protocol !== 'http:' && url.protocol !== 'https:') return false
 
   const host = url.hostname.toLowerCase().replace(/^\[|\]$/g, '')

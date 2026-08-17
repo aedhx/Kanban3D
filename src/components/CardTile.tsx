@@ -2,20 +2,19 @@
 
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { STATUSES, STATUS_LABELS, type Status } from '@/db/schema'
+import { PRIORITY_LABELS, STATUSES, STATUS_LABELS, type Priority, type Status } from '@/db/schema'
 import { adjacentStatus, type BoardCard } from '@/lib/board'
-import { dueState, formatDue, type DueState } from '@/lib/dates'
 import { photoUrl } from '@/lib/photo'
 import { formatFilamentCost, formatPieces, formatPrintTime, printCostParts } from '@/lib/printInfo'
 import {
   IconComments,
-  IconDueDate,
   IconMovedBy,
   IconNext,
-  IconOverdue,
   IconPieces,
   IconPrevious,
   IconPrintTime,
+  IconUrgent,
+  IconMultiColor,
 } from './icons'
 import { Thumbnail } from './Thumbnail'
 
@@ -51,24 +50,30 @@ function swatchFor(color: string | null): string | null {
   return null
 }
 
-const DUE_STYLES: Record<DueState, string> = {
-  overdue: 'bg-red-500/15 text-red-700 dark:text-red-300 font-semibold',
-  today: 'bg-accent/15 text-accent-deep font-semibold',
-  soon: 'text-muted',
-  later: 'text-muted',
+/**
+ * Le niveau normal n'a pas de badge : un badge sur chaque carte ne distinguerait
+ * plus rien. Seuls les deux écarts se signalent.
+ */
+const PRIORITY_STYLES: Record<Priority, string | null> = {
+  2: 'bg-red-500/15 text-red-700 dark:text-red-300 font-semibold',
+  1: null,
+  0: 'text-muted',
 }
 
 /** Partie haute de la carte : c'est elle qu'on saisit pour glisser. */
 function CardContent({
   card,
   filamentPricePerKg,
+  printProgress,
 }: {
   card: BoardCard
   filamentPricePerKg: number | null
+  /** Avancement, si c'est cette carte que la machine est en train d'imprimer. */
+  printProgress?: number | null
 }) {
   const swatch = swatchFor(card.color)
-  // Une échéance sur une carte déjà terminée n'a plus rien à signaler.
-  const due = card.dueDate && card.status !== 'done' ? dueState(card.dueDate) : null
+  // Une priorité n'a plus rien à dire sur une carte déjà terminée.
+  const priorityStyle = card.status === 'done' ? null : PRIORITY_STYLES[card.priority]
   // Ce que l'impression va coûter, et s'il y a un assemblage à prévoir.
   // L'horloge n'annonce que la durée : sans durée, « 52 g » se passe d'icône.
   // Le prix rejoint la ligne, sur la même base qu'elle : pour une pièce.
@@ -111,16 +116,22 @@ function CardContent({
           )}
           {card.source && <span className="truncate">{card.source}</span>}
 
-          {due && (
+          {priorityStyle && (
             <span
-              className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 ${DUE_STYLES[due]}`}
+              className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 ${priorityStyle}`}
             >
-              {due === 'overdue' ? (
-                <IconOverdue size={12} weight="fill" aria-hidden />
-              ) : (
-                <IconDueDate size={12} aria-hidden />
-              )}
-              {formatDue(card.dueDate!)}
+              {card.priority === 2 && <IconUrgent size={12} weight="fill" aria-hidden />}
+              {PRIORITY_LABELS[card.priority]}
+            </span>
+          )}
+
+          {card.multiColor && (
+            <span
+              className="inline-flex items-center gap-1"
+              title="Demande le Canvas, l’unité multi-couleur"
+            >
+              <IconMultiColor size={13} aria-hidden />
+              {card.colorCount ? `${card.colorCount} couleurs` : 'multi-couleur'}
             </span>
           )}
 
@@ -152,6 +163,23 @@ function CardContent({
                 {pieces}
               </span>
             )}
+          </div>
+        )}
+
+        {/* La machine imprime cette carte : on la suit ici aussi, pas seulement
+            dans le bandeau du haut. */}
+        {printProgress !== null && printProgress !== undefined && (
+          <div className="mt-2" data-testid="card-progress">
+            <div className="flex items-center justify-between text-[11px] text-accent-deep">
+              <span className="font-medium">sur l’imprimante</span>
+              <span>{Math.round(printProgress)} %</span>
+            </div>
+            <div className="mt-1 h-1 overflow-hidden rounded-full bg-line">
+              <div
+                className="h-full bg-accent transition-[width]"
+                style={{ width: `${Math.round(printProgress)}%` }}
+              />
+            </div>
           </div>
         )}
 
@@ -214,6 +242,7 @@ export function CardTile({
   card,
   selected = false,
   filamentPricePerKg,
+  printProgress,
   onOpen,
   onMove,
 }: {
@@ -221,6 +250,7 @@ export function CardTile({
   /** Carte actuellement ouverte dans le panneau latéral. */
   selected?: boolean
   filamentPricePerKg: number | null
+  printProgress?: number | null
   onOpen: (card: BoardCard) => void
   onMove: (card: BoardCard, status: Status) => void
 }) {
@@ -256,7 +286,11 @@ export function CardTile({
         aria-current={selected ? 'true' : undefined}
         aria-label={`${card.title} — ouvrir le détail`}
       >
-        <CardContent card={card} filamentPricePerKg={filamentPricePerKg} />
+        <CardContent
+          card={card}
+          filamentPricePerKg={filamentPricePerKg}
+          printProgress={printProgress}
+        />
       </div>
 
       <CardFooter card={card} onMove={onMove} interactive />

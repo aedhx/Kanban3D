@@ -1,4 +1,8 @@
 import { redirect } from 'next/navigation'
+import { eq } from 'drizzle-orm'
+import { getDb } from '@/db'
+import { printer } from '@/db/schema'
+import { printerToView } from '@/lib/printerView'
 import { listCards } from '@/db/queries'
 import { isAuthenticated } from '@/lib/auth'
 import { toBoardCard } from '@/lib/board'
@@ -24,7 +28,20 @@ export default async function HomePage() {
     return <SetupNeeded error={error} />
   }
 
+  /*
+   * L'état de l'imprimante part avec le premier rendu : le bandeau est alors
+   * peuplé d'emblée, sans le clignotement d'un chargement. Il se rafraîchira
+   * ensuite de lui-même.
+   */
+  const [machine] = await getDb().select().from(printer).where(eq(printer.id, 1))
+
   // Le prix du filament est une variable d'environnement : elle n'existe que
   // côté serveur, d'où ce passage explicite au composant client.
-  return <Board initialCards={rows.map(toBoardCard)} filamentPricePerKg={filamentPricePerKg()} />
+  return (
+    <Board
+      initialCards={rows.map(toBoardCard)}
+      filamentPricePerKg={filamentPricePerKg()}
+      printer={machine ? printerToView(machine) : null}
+    />
+  )
 }

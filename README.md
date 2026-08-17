@@ -78,6 +78,43 @@ lancer quoi que ce soit, si la file représente une soirée ou un week-end :
 Tant que ce prix n'est pas donné, aucun montant n'apparaît nulle part : mieux vaut
 ne rien dire qu'avancer un chiffre tiré d'une moyenne inventée.
 
+### Le multi-couleur
+
+Une carte peut annoncer qu'elle demande plusieurs couleurs, et combien :
+
+> 🎨 **3 couleurs · Canvas**
+
+L'intérêt est concret : on voit avant de lancer s'il faut monter l'unité
+multi-couleur, au lieu de le découvrir au premier changement de filament. Le total
+de la colonne le mentionne aussi — « 1 en multi-couleur ».
+
+---
+
+## L'imprimante, en direct sur le tableau
+
+Un bandeau au-dessus des colonnes, quand une imprimante est reliée :
+
+![L'état de l'imprimante sur le tableau](docs/images/imprimante-bandeau.png)
+
+Le nom de la machine, l'état, le fichier en cours, l'avancement, le temps
+restant, les températures. Et si le fichier imprimé ressemble au titre d'une
+carte, **cette carte affiche aussi sa progression** — « sur l'imprimante 92 % ».
+Le tableau ne dit plus seulement ce qui est demandé, il dit où ça en est.
+
+La liaison passe par **OctoEverywhere**, qui sait parler aux imprimantes Elegoo.
+Dans OctoEverywhere, on crée un *Live Link* — une adresse en lecture seule — et on
+la colle dans les réglages. Rien à ouvrir sur le réseau, rien à installer, et le
+lien se révoque du même endroit.
+
+![La page de réglages de l'imprimante](docs/images/imprimante-reglages.png)
+
+Un bouton « Tester la connexion » dit franchement ce qu'il obtient — l'état lu, ou
+l'erreur mot pour mot. Machine éteinte ou NAS débranché, le bandeau garde le
+dernier état connu et affiche son âge plutôt qu'un écran vide.
+
+Sans imprimante configurée, il n'y a pas de bandeau : l'application marche
+exactement comme avant.
+
 ---
 
 ## La photo de ce qui est sorti
@@ -104,8 +141,8 @@ de laquelle le panneau parle.
 
 ![Le panneau latéral](docs/images/panneau-lateral.png)
 
-Quantité, couleur, remarque, échéance, colonne, suppression : tout est là. Et
-enregistrer ne referme rien.
+Priorité, quantité, couleur, multi-couleur, remarque, colonne, suppression : tout
+est là. Et enregistrer ne referme rien.
 
 ---
 
@@ -134,10 +171,19 @@ ntfy ou n'importe quel webhook.
 
 ---
 
-## Les échéances, et l'oubli
+## Ce qui passe d'abord
 
-Une carte peut porter une date souhaitée : « dans 2 j », « demain », puis
-« 3 j de retard » en rouge quand c'est passé.
+Trois niveaux, choisis d'un doigt : **Tranquille · Normal · Urgent**. La colonne
+« À imprimer » se classe d'elle-même — l'urgent en haut — et le badge n'apparaît
+que hors du niveau normal, pour dire quelque chose plutôt que de décorer chaque
+carte.
+
+Le glisser-déposer continue de fonctionner à l'intérieur d'un niveau, et faire
+monter une carte dans le bloc « Urgent » la rend urgente. Rien ne revient à sa
+place sous l'œil.
+
+C'est une date en moins à saisir : la question n'a jamais été « pour quand », mais
+« laquelle d'abord ».
 
 Et pour que « Fait » ne devienne pas un mur : au-delà de trente jours, une carte
 terminée se replie dans un historique qui ne s'ouvre que si on le demande.

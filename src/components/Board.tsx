@@ -15,6 +15,7 @@ import {
 } from '@dnd-kit/core'
 import { sortableKeyboardCoordinates } from '@dnd-kit/sortable'
 import { STATUSES, type Status } from '@/db/schema'
+import type { PrinterView } from '@/lib/printerView'
 import { columnCards, pendingCard, resolveDrop, type BoardCard } from '@/lib/board'
 import { positionBetween } from '@/lib/cards'
 import { PEOPLE, type Person } from '@/lib/people'
@@ -23,7 +24,8 @@ import { AddUrlBar } from './AddUrlBar'
 import { CardPanel } from './CardPanel'
 import { CardPreview } from './CardTile'
 import { Greeting } from './Greeting'
-import { IconIdentity, IconOffline } from './icons'
+import { PrinterStrip } from './PrinterStrip'
+import { IconIdentity, IconOffline, IconSettings } from './icons'
 import { Column } from './Column'
 
 const REFRESH_INTERVAL_MS = 10_000
@@ -31,10 +33,13 @@ const REFRESH_INTERVAL_MS = 10_000
 export function Board({
   initialCards,
   filamentPricePerKg,
+  printer,
 }: {
   initialCards: BoardCard[]
   /** Prix du kilo, ou `null` si la variable d'environnement n'est pas posée. */
   filamentPricePerKg: number | null
+  /** Dernier état connu de l'imprimante, ou `null` si la table est vide. */
+  printer: PrinterView | null
 }) {
   const { identity, choose, loaded } = useIdentity()
   const [cards, setCards] = useState<BoardCard[]>(initialCards)
@@ -48,6 +53,16 @@ export function Board({
    * un plein écran à chaque bascule deviendrait vite pénible.
    */
   const [greeted, setGreeted] = useState<Person | null>(null)
+  /*
+   * Progression remontée par le bandeau. Elle vit ici et non dans le bandeau,
+   * parce qu'elle sert aussi à la carte qui imprime — et c'est le tableau qui
+   * connaît les cartes.
+   */
+  const [printing, setPrinting] = useState<{ fileName: string | null; progress: number } | null>(
+    printer?.printing && printer.progress !== null
+      ? { fileName: printer.fileName, progress: printer.progress }
+      : null,
+  )
 
   // Le rafraîchissement périodique ne doit jamais écraser une modification en
   // cours : on le met en pause pendant un glisser ou un appel réseau.
@@ -329,6 +344,14 @@ export function Board({
                 <IconIdentity size={14} aria-hidden />
                 {identity ?? '—'}
               </button>
+              <a
+                href="/reglages"
+                title="Réglages"
+                aria-label="Réglages"
+                className="inline-flex min-h-10 min-w-10 items-center justify-center rounded-full border border-line px-2.5 transition-colors hover:border-accent hover:text-accent sm:min-h-0 sm:min-w-0 sm:py-1"
+              >
+                <IconSettings size={14} aria-hidden />
+              </a>
             </div>
           </header>
 
@@ -340,6 +363,8 @@ export function Board({
               </p>
             )}
           </div>
+
+          <PrinterStrip initial={printer} onPrinting={setPrinting} />
 
           <DndContext
             sensors={sensors}
@@ -359,6 +384,7 @@ export function Board({
                   cards={columnCards(cards, status)}
                   selectedId={editingId}
                   filamentPricePerKg={filamentPricePerKg}
+                  printing={status === 'printing' ? printing : null}
                   onOpen={(card) => setEditingId(card.id)}
                   onMove={moveCard}
                 />

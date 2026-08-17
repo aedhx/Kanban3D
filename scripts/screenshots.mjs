@@ -116,11 +116,13 @@ for (const dark of [false, true]) {
   await page.keyboard.press('ControlOrMeta+V')
   // La carte provisoire, puis la même une seconde plus tard : c'est toute
   // l'histoire du collage, et un gros plan la raconte mieux qu'une page entière.
-  const provisoire = page.locator('li:has-text("Recherche des informations")')
+  const provisoire = page.locator('li:has-text("Recherche des informations")').first()
   await provisoire.waitFor({ timeout: 4000 })
   await provisoire.screenshot({ path: `${OUT}/collage-en-cours.png` })
   console.log('  collage-en-cours.png')
-  const finale = page.locator('li:has-text("Alphabet Clicker")')
+  // `.first()` : le collage laisse la carte derrière lui, et deux passages du
+  // script en créeraient deux.
+  const finale = page.locator('li:has-text("Alphabet Clicker")').first()
   await finale.waitFor({ timeout: 20000 })
   await page.waitForTimeout(900)
   await finale.scrollIntoViewIfNeeded()
@@ -177,10 +179,14 @@ for (const dark of [false, true]) {
   await shot(page, dark ? 'mobile-sombre' : 'mobile')
   if (!dark) {
     await page.locator('li:has-text("SKADIS Display Shelf") [data-testid="card-handle"]').click()
-    await page.waitForSelector('[data-testid="card-panel"]')
+    // La feuille monte du bas : on la laisse arriver, puis on vérifie qu'elle est
+    // bien là avant de remonter son défilement — un `querySelector` optimiste
+    // faisait échouer la capture au lieu de l'attendre.
+    const feuille = page.locator('[data-testid="card-panel"]')
+    await feuille.waitFor({ state: 'visible', timeout: 10000 })
     await page.waitForTimeout(600)
-    await page.evaluate(() => {
-      document.querySelector('[data-testid="card-panel"]').scrollTop = 0
+    await feuille.evaluate((el) => {
+      el.scrollTop = 0
     })
     await page.waitForTimeout(200)
     await shot(page, 'mobile-panneau')
@@ -199,6 +205,74 @@ for (const dark of [false, true]) {
   await fait.screenshot({ path: `${OUT}/archive.png` })
   console.log('  archive.png')
   await ctx.close()
+}
+
+/* ---------- L'imprimante : le bandeau, et sa page de réglages ----------
+ *
+ * Nécessite une source d'état : PRINTER_DEMO_URL. Rien n'est codé en dur ici —
+ * l'adresse d'un « Live Link » est un sésame, elle n'a pas sa place dans le dépôt.
+ * Sans cette variable, les deux captures sont simplement sautées.
+ */
+if (process.env.PRINTER_DEMO_URL) {
+  const { ctx, page } = await open({})
+  await page.evaluate(async (url) => {
+    await fetch('/api/printer', {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ statusUrl: url }),
+    })
+    /*
+     * La carte qui porte le nom du fichier imprimé part en « En impression » :
+     * c'est elle qui montre la progression reprise sur la machine, et sans elle la
+     * capture ne raconte que la moitié de la fonctionnalité.
+     */
+    const { cards } = await (await fetch('/api/cards')).json()
+    const enCours = cards.find((c) => c.title?.includes('Exam Roulette'))
+    if (enCours) {
+      await fetch(`/api/cards/${enCours.id}`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ status: 'printing', movedBy: 'Alexandre' }),
+      })
+    }
+  }, process.env.PRINTER_DEMO_URL)
+  await page.reload({ waitUntil: 'networkidle' })
+  await page.waitForSelector('[data-testid="printer-strip"]', { timeout: 10000 })
+  // Le bandeau se peuple à l'arrivée : on attend qu'il ait quelque chose à dire.
+  await page.waitForTimeout(1500)
+  await shot(page, 'imprimante-bandeau', { clip: { x: 0, y: 0, width: 1440, height: 470 } })
+
+  await page.goto(`${BASE}/reglages`, { waitUntil: 'networkidle' })
+  /*
+   * Le formulaire est rempli d'une adresse d'exemple, pas de celle qui sert à la
+   * capture précédente : une image de README se lit par-dessus l'épaule.
+   *
+   * Et on remplit jusqu'à ce que ça tienne — la page peut s'afficher avant d'être
+   * hydratée, et React réécrit alors le champ.
+   */
+  for (let essai = 0; essai < 30; essai++) {
+    await page.fill('#p-url', 'https://octoeverywhere.com/live/XXXXXXXXXX')
+    if (await page.locator('[data-testid="test-printer"]').isEnabled()) break
+    await page.waitForTimeout(300)
+  }
+  const bas = await page.evaluate(() =>
+    Math.ceil(document.querySelector('form')?.getBoundingClientRect().bottom ?? 700),
+  )
+  await shot(page, 'imprimante-reglages', {
+    clip: { x: 0, y: 0, width: 1440, height: Math.min(900, bas + 24) },
+  })
+
+  // On ne laisse pas la base de démonstration reliée à une imprimante.
+  await page.evaluate(async () => {
+    await fetch('/api/printer', {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ statusUrl: null }),
+    })
+  })
+  await ctx.close()
+} else {
+  console.log('  (imprimante : PRINTER_DEMO_URL absente, captures sautées)')
 }
 
 await browser.close()

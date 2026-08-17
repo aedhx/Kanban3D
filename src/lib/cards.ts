@@ -1,4 +1,4 @@
-import { STATUSES, type Status } from '@/db/schema'
+import { DEFAULT_PRIORITY, PRIORITIES, STATUSES, type Priority, type Status } from '@/db/schema'
 
 export const POSITION_STEP = 1000
 
@@ -18,6 +18,20 @@ export function positionBetween(before?: number, after?: number): number {
   if (before === undefined) return after! - POSITION_STEP
   if (after === undefined) return before + POSITION_STEP
   return (before + after) / 2
+}
+
+export function isPriority(value: unknown): value is Priority {
+  return typeof value === 'number' && (PRIORITIES as readonly number[]).includes(value)
+}
+
+/**
+ * Priorité reçue du navigateur. Tout ce qui n'est pas un des trois niveaux connus
+ * retombe sur « Normal » : une valeur farfelue ne doit pas rendre une carte
+ * inclassable.
+ */
+export function normalizePriority(value: unknown): Priority {
+  const n = typeof value === 'number' ? value : Number.parseInt(String(value ?? ''), 10)
+  return isPriority(n) ? n : DEFAULT_PRIORITY
 }
 
 /** Nettoie une quantité saisie par l'utilisateur. */
@@ -42,28 +56,12 @@ export function normalizeCount(value: unknown, max: number): number | null {
 
 /** Bornes hautes, larges mais finies, pour écarter les saisies absurdes. */
 export const LIMITS = {
+  colorCount: 16,
   printMinutes: 100_000, // ~69 jours
   filamentGrams: 100_000, // 100 kg
   fileCount: 10_000,
   pieceCount: 10_000,
 } as const
-
-/**
- * Échéance au format `AAAA-MM-JJ`. On refuse tout le reste plutôt que de laisser
- * Postgres interpréter une chaîne ambiguë comme « 03/04/2026 ».
- */
-export function normalizeDate(value: unknown): string | null {
-  if (typeof value !== 'string') return null
-  const trimmed = value.trim()
-  if (!trimmed) return null
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return null
-  // Écarte les dates inexistantes (31 février…), que le format seul laisse passer.
-  const parsed = new Date(`${trimmed}T00:00:00Z`)
-  if (Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== trimmed) {
-    return null
-  }
-  return trimmed
-}
 
 /** Champ texte optionnel : chaîne vide et espaces seuls deviennent null. */
 export function normalizeText(value: unknown, maxLength = 2000): string | null {
