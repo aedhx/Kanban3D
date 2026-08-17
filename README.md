@@ -25,14 +25,20 @@ Sur [app.netlify.com](https://app.netlify.com) : **Add new site → Import an
 existing project**, puis choisir ce dépôt. La commande de build et le dossier
 publié sont déjà décrits dans `netlify.toml`, il n'y a rien à saisir.
 
-### 2. Brancher la base de données
+### 2. Activer la base de données
 
-Dans le site : **Project configuration → Database → Netlify DB**, puis *Claim
-database* pour la conserver au-delà de la période d'essai (le niveau gratuit
-suffit très largement ici).
+**Project configuration → Database → Netlify DB.**
 
-Netlify crée une base Postgres (Neon) et renseigne `DATABASE_URL` tout seul. Les
-tables, elles, sont créées automatiquement au premier déploiement : la commande de
+Tout se passe dans Netlify : il n'y a aucun compte à créer ailleurs, aucun
+service externe à raccorder. Netlify provisionne la base et renseigne
+`DATABASE_URL` tout seul. (Neon n'est que la technologie sous le capot, au même
+titre qu'AWS est sous celui de Netlify.)
+
+> **Cliquez ensuite sur *Claim database*.** Sans cela, la base est en essai et
+> **expire au bout de sept jours**, données comprises. Le bouton la rattache
+> définitivement au compte, gratuitement.
+
+Les tables sont créées automatiquement au premier déploiement : la commande de
 build applique les migrations avant de construire le site.
 
 ### 3. Ajouter les deux variables restantes
