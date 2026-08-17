@@ -26,6 +26,8 @@ type Attente = {
    * On les signale sans faire échouer la commande.
    */
   filtrageFrequent?: boolean
+  /** Ce qu'il y a à faire, quand il y a quelque chose à faire. */
+  remede?: string
 }
 
 const ATTENTES: Attente[] = [
@@ -49,6 +51,34 @@ const ATTENTES: Attente[] = [
     titre: /3dbenchy/i,
     auteur: /creativetools/i,
     imageAttendue: true,
+    // Cloudflare bloque les pages /thing:* vues depuis les adresses des
+    // hébergeurs : cette ligne passe en local et échoue en production, sauf si
+    // THINGIVERSE_TOKEN est configuré.
+    filtrageFrequent: true,
+    remede:
+      'Posez THINGIVERSE_TOKEN (App Token gratuit sur thingiverse.com/apps/create) :\n' +
+      "    c'est le seul chemin fiable depuis un hébergeur, dont Netlify.",
+  },
+  {
+    plateforme: 'Thangs',
+    url: 'https://thangs.com/designer/Valeria%20Momo%20%26%20Mattia/3d-model/Customizable%20Alphabet%20Clicker%20%26%20Keychain-1501622',
+    titre: /alphabet clicker/i,
+    auteur: /valeria/i,
+    imageAttendue: true,
+  },
+  {
+    plateforme: 'Thangs (lien court)',
+    url: 'https://than.gs/m/1501622',
+    titre: /alphabet clicker/i,
+    auteur: /valeria/i,
+    imageAttendue: true,
+  },
+  {
+    plateforme: 'MyMiniFactory',
+    url: 'https://www.myminifactory.com/object/3d-print-lens-hood-compatible-with-canon-17-40-f4-77',
+    titre: /lens hood/i,
+    imageAttendue: true,
+    filtrageFrequent: true,
   },
   {
     plateforme: 'Cults3D',
@@ -120,9 +150,10 @@ for (const attente of ATTENTES) {
   )
   if (!complet && attente.filtrageFrequent) {
     console.log(
-      `    [2mCe site filtre parfois selon l'adresse IP. L'application se rabat`,
+      `    [2mCe site filtre selon l'adresse IP appelante. L'application se rabat`,
     )
     console.log(`    proprement sur un titre déduit de l'URL — rien n'est cassé.[0m`)
+    if (attente.remede) console.log(`    [2m${attente.remede}[0m`)
   }
   console.log()
 }

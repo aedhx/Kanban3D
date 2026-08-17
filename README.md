@@ -71,6 +71,10 @@ Ajoutez-y aussi, si vous voulez les notifications, les variables d'un des trois
 canaux décrits dans `.env.example` — le plus simple étant `TELEGRAM_BOT_TOKEN` +
 `TELEGRAM_CHAT_ID`. Sans elles, l'application marche mais n'envoie rien.
 
+Et `THINGIVERSE_TOKEN`, si vous collez des liens Thingiverse : c'est la seule
+plateforme dont les pages sont bloquées lorsqu'elles sont demandées depuis un
+hébergeur (voir « Le cas Thingiverse » plus bas).
+
 Puis **Deploys → Trigger deploy**. À la première visite, le site demande le code,
 puis qui vous êtes.
 
@@ -149,17 +153,49 @@ fluide.
 `src/lib/metadata.ts`. Un adaptateur par plateforme, parce qu'elles ne se lisent
 pas de la même façon :
 
-| Plateforme | Méthode |
-| --- | --- |
-| Printables | API GraphQL `api.printables.com` — la page HTML est bloquée par Cloudflare, l'API non |
-| MakerWorld | API REST `makerworld.com/api/v1/design-service/design/{id}` |
-| Thingiverse | balises OpenGraph de la page |
-| Cults3D | balises OpenGraph + auteur en JSON-LD |
-| tout le reste | OpenGraph, sinon `<title>`, sinon le nom déduit de l'URL |
+| Plateforme | Ce qu'on obtient | Comment |
+| --- | --- | --- |
+| **Printables** | titre, image, auteur, **coût d'impression** | API GraphQL `api.printables.com` — la page HTML est bloquée par Cloudflare, l'API non |
+| **MakerWorld** | titre, image, auteur, **coût d'impression** | API REST `makerworld.com/api/v1/design-service/design/{id}` |
+| **Thangs** | titre, image, auteur, nombre de fichiers | API publique `thangs.com/api/models/{id}`, sans clé. Les liens courts `than.gs/m/{id}` sont reconnus |
+| **Thingiverse** | titre, image, auteur | API officielle si `THINGIVERSE_TOKEN` est posé, sinon les balises OpenGraph de la page |
+| **Cults3D** | titre, image, auteur | OpenGraph + JSON-LD |
+| **MyMiniFactory** | titre, image | JSON-LD seul : ce site n'a aucune balise `og:title` |
+| Creality Cloud, Pinshape, Fab365 | titre, badge, image selon les pages | voie générique. Reconnues pour le badge et le titre de repli, sans plus de garantie — leurs pages se construisent en JavaScript |
+| tout le reste | ce que la page veut bien dire | OpenGraph, puis JSON-LD, puis `<title>`, puis le nom déduit de l'URL |
+
+Le suffixe d'une URL n'a pas d'importance : `/model/72753-nom/files`,
+`/comments`, un `#fragment` — la détection porte sur l'identifiant, le reste du
+chemin est ignoré.
 
 Cette fonction **n'échoue jamais** : si une plateforme ne répond pas, la carte se
 crée quand même avec un titre déduit de l'URL, à corriger à la main. C'est utile
 en pratique — Cults3D refuse parfois les requêtes selon l'adresse IP appelante.
+
+Deux pièges de lecture, rencontrés pour de vrai :
+
+- **Une redirection silencieuse.** Un lien Pinshape mort ne répond pas 404 : il
+  redirige vers l'accueil et renvoie 200. Sans garde-fou, la carte s'appelait
+  « Pinshape — 3D Marketplace for Designers ». `keptItsIdentity()` vérifie donc que
+  la page servie parle encore du modèle demandé — l'identifiant numérique doit
+  survivre à la redirection, et l'on refuse les atterrissages sur `/index`,
+  `/login`, `/search`…
+- **Le poids qui n'en est pas un.** Thangs expose un champ `profileWeight` : c'est
+  un poids de classement, pas des grammes de filament. Il n'est pas utilisé.
+
+### Le cas Thingiverse
+
+Thingiverse est la seule plateforme dont les pages de modèles sont **bloquées
+lorsqu'elles sont demandées depuis un hébergeur**. Mesuré sur la production : la
+page d'accueil du site répond, les pages `/thing:*` non, tandis que Printables et
+Cults3D passent sans problème. Depuis un poste de développement tout fonctionne —
+c'est pourquoi la panne ne se voit qu'en ligne, tests verts à l'appui.
+
+Le remède est son API officielle : créez une application sur
+[thingiverse.com/apps/create](https://www.thingiverse.com/apps/create) (gratuit,
+immédiat), relevez l'« App Token » et posez-le dans `THINGIVERSE_TOKEN`. Il est
+alors essayé **avant** la lecture de page. Sans jeton, rien ne casse : la carte
+arrive nommée « Thingiverse 5564110 », à renommer dans le panneau.
 
 ### Coût d'impression
 
