@@ -112,6 +112,14 @@ Autres commandes :
 | `npm run db:generate` | produit une migration après une modification de `src/db/schema.ts` |
 | `npm run db:migrate` | applique les migrations en attente |
 
+Deux images se régénèrent à la main, et ne tournent ni au build ni au
+déploiement :
+
+```bash
+python3 scripts/generate-icons.py   # les icônes de l'app, dans public/
+node scripts/generate-og.mjs        # l'image de partage, public/og.png
+```
+
 Les captures du README se refont en deux commandes, sur une base locale :
 
 ```bash
@@ -394,6 +402,37 @@ jours passent derrière un lien « voir l'historique » ; c'est `done_at` qui en
 décide, horodaté à l'entrée en « Fait » et effacé si la carte en ressort.
 `updated_at` ne pourrait pas jouer ce rôle, la moindre correction le remettant à
 zéro.
+
+### L'image de partage
+
+`public/og.png` (1200×630), déclarée dans `src/app/layout.tsx` et régénérée par
+`node scripts/generate-og.mjs`. Sans elle, un lien partagé dans iMessage n'affiche
+qu'un titre et un domaine, et a l'air mort.
+
+Quatre points qui comptent plus qu'on ne croit :
+
+- **URL absolue obligatoire.** `metadataBase` est construit depuis
+  `process.env.URL`, que Netlify fournit, avec repli sur le domaine connu. La
+  plupart des robots d'aperçu ignorent une `og:image` relative.
+- **L'image doit être lisible sans session.** C'est un fichier statique de
+  `public/` : les robots d'aperçu n'ont pas de cookie, une image servie par une
+  route authentifiée ne s'afficherait jamais.
+- **`robots: { index: false }` ne gêne pas les aperçus.** iMessage, WhatsApp et
+  Slack ne consultent pas robots.txt avant de déplier un lien. Le tableau reste
+  donc hors des moteurs de recherche tout en s'affichant correctement quand on
+  l'envoie.
+- **Le lien partagé est la racine, qui redirige.** Un robot sans session reçoit un
+  307 vers `/login` ; les balises vivant dans le layout racine, il les trouve au
+  bout de la redirection. Les principaux robots la suivent — mais c'est la raison
+  pour laquelle ces balises doivent rester dans le layout et non dans la page.
+
+La mise en page est typographique plutôt qu'une capture d'écran, pour deux
+raisons : elle reste déchiffrable réduite à 120 px de large (la taille réelle
+d'une vignette WhatsApp, vérifiée), et elle ne vieillit pas à chaque évolution de
+l'interface. Le cube est lu depuis le paquet Phosphor, à l'endroit même où
+`generate-icons.py` le lit : l'icône de l'application et l'image de partage ne
+peuvent pas diverger. Tout le contenu tient dans le carré central, de sorte qu'un
+rognage en 1:1 conserve l'essentiel.
 
 ### Icônes
 
