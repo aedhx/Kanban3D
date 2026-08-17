@@ -25,31 +25,43 @@ Sur [app.netlify.com](https://app.netlify.com) : **Add new site → Import an
 existing project**, puis choisir ce dépôt. La commande de build et le dossier
 publié sont déjà décrits dans `netlify.toml`, il n'y a rien à saisir.
 
-### 2. Activer la base de données
+### 2. Brancher une base Postgres
 
-**Project configuration → Database**, puis activez la base.
-
-Tout se passe dans Netlify : il n'y a aucun compte à créer ailleurs, aucun
-service externe à raccorder, et **aucune variable à saisir à la main** — Netlify
-fournit `NETLIFY_DB_URL` de lui-même, aux builds comme aux fonctions.
+Le plus simple est **[Neon](https://neon.com)** : compte gratuit, sans carte
+bancaire. Créez un projet, copiez la chaîne de connexion qu'il affiche
+(`postgresql://…?sslmode=require`), et posez-la dans Netlify sous le nom
+`DATABASE_URL` à l'étape suivante.
 
 Les tables sont créées automatiquement au premier déploiement : la commande de
 build applique les migrations avant de construire le site.
 
-> **Le nom de la variable dépend de l'âge de votre base.** Netlify Database
-> (disponibilité générale depuis avril 2026) expose `NETLIFY_DB_URL` ;
-> l'ancienne extension « Netlify DB » exposait `NETLIFY_DATABASE_URL`.
-> L'application accepte les deux, plus `DATABASE_URL` pour le développement
-> local — voir `src/lib/databaseUrl.ts`.
+<details>
+<summary>Variante : Netlify Database</summary>
 
-### 3. Ajouter les deux variables restantes
+**Project configuration → Database** provisionne un Postgres sans quitter
+Netlify, et pose `NETLIFY_DB_URL` de lui-même — aucune variable à saisir.
+
+Attention : **Netlify Database n'est disponible que sur les offres à crédits.**
+Sur les autres, la création échoue, et Neon est alors la voie à suivre.
+
+L'application accepte les deux, plus l'ancien `NETLIFY_DATABASE_URL` de
+l'extension d'avant avril 2026. L'ordre de lecture est dans
+`src/lib/databaseUrl.ts`.
+
+</details>
+
+### 3. Poser les variables d'environnement
 
 Dans **Project configuration → Environment variables** :
 
 | Variable | Valeur |
 | --- | --- |
+| `DATABASE_URL` | la chaîne de connexion Neon de l'étape 2 (inutile avec Netlify Database) |
 | `APP_PIN` | le code que vous partagez avec votre frère, par ex. `4271` |
 | `APP_SECRET` | une chaîne aléatoire, obtenue avec `openssl rand -hex 32` |
+
+Ces variables ne sont lues qu'au déploiement : après les avoir posées ou
+modifiées, relancez un déploiement pour qu'elles prennent effet.
 
 `APP_SECRET` sert à signer le cookie de session. Changer `APP_PIN` déconnecte
 automatiquement tout le monde.
@@ -70,7 +82,7 @@ place :
 | Symptôme | Cause |
 | --- | --- |
 | Le code est refusé avec « L'application n'est pas configurée » | `APP_PIN` ou `APP_SECRET` manque |
-| Le journal de build affiche « aucune chaîne de connexion » | la base n'est pas activée dans l'onglet Database |
+| Le journal de build affiche « aucune chaîne de connexion » | `DATABASE_URL` manque, ou la base Netlify n'est pas activée |
 | Le tableau affiche un écran de configuration | il nomme lui-même la cause et les gestes à faire |
 
 ## En local
@@ -83,7 +95,8 @@ npm run dev                    # http://localhost:3000
 ```
 
 Pour un Postgres local, `DATABASE_URL=postgresql://postgres@127.0.0.1:5432/kanban3d`.
-En production cette variable reste vide : c'est `NETLIFY_DB_URL` qui sert.
+La même variable sert en production quand la base vient de Neon ; avec Netlify
+Database, c'est `NETLIFY_DB_URL` qui prend le relais et il n'y a rien à saisir.
 
 Autres commandes :
 
