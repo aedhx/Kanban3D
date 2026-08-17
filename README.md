@@ -1,18 +1,151 @@
 # Kanban3D
 
-Un tableau d'impressions 3D partagé à deux. **On colle le lien d'un modèle**
-(Printables, MakerWorld, Thingiverse, Cults3D…) **et la carte se crée toute
-seule** dans « À imprimer », titre, image, auteur et coût d'impression compris —
-durée, filament, matière, nombre de pièces. Il ne reste plus qu'à la faire
-avancer de colonne au fil de l'impression.
+**Un tableau d'impressions 3D partagé à deux.** L'un demande, l'autre imprime.
+On colle le lien d'un modèle, la carte se crée toute seule, et elle avance de
+colonne au fil de l'impression.
 
-**À imprimer → En impression → Fait.** Pas de compte, pas de collection, pas
-d'export : un seul écran, un code partagé.
+Pas de compte, pas de collection, pas d'export. Un seul écran, un code partagé.
 
-Quantité, couleur, remarque et échéance se règlent ensuite dans le panneau
-latéral, si besoin — le plus souvent il n'y en a pas. Chaque carte a aussi son
-fil de discussion, et une notification part sur vos téléphones à chaque demande,
-chaque déplacement et chaque message.
+![Le tableau](docs/images/tableau.png)
+
+---
+
+## Coller un lien, c'est tout
+
+Un champ, en haut. Vous collez l'adresse d'un modèle — le geste est fini. Aucun
+formulaire, aucun bouton : la carte apparaît immédiatement dans « À imprimer »,
+et se remplit une seconde plus tard avec ce que la plateforme veut bien dire.
+
+| Au moment du collage | Une seconde plus tard |
+| --- | --- |
+| ![Carte provisoire](docs/images/collage-en-cours.png) | ![Carte complétée](docs/images/collage-termine.png) |
+
+C'est **le serveur** qui va chercher titre, image et auteur — un aller-retour
+plutôt que deux, et aucune carte ne peut arriver sans nom. Un collage qui
+contient plusieurs liens crée plusieurs cartes. Et un texte qui n'est pas un lien
+devient simplement le titre, pour une demande sans modèle en ligne.
+
+### Les plateformes reconnues
+
+| | Titre, image, auteur | Coût d'impression |
+| --- | :---: | :---: |
+| **Printables** | ✔ | ✔ |
+| **MakerWorld** | ✔ | ✔ |
+| **Thangs** (liens `than.gs` compris) | ✔ | — |
+| **Thingiverse** | ✔ &nbsp;*(jeton requis en ligne, voir plus bas)* | — |
+| **Cults3D** | ✔ | — |
+| **MyMiniFactory** | titre et image | — |
+| Creality Cloud, Pinshape, Fab365 | selon la page | — |
+| n'importe quelle autre adresse | ce que la page veut bien dire | — |
+
+Le suffixe de l'adresse n'a aucune importance : `/files`, `/comments`, un
+`#fragment` — seul l'identifiant compte. Et si une plateforme ne répond pas, la
+carte se crée quand même, nommée d'après son adresse, à corriger d'un clic.
+
+---
+
+## Ce que l'impression va coûter
+
+Durée, filament, matière, nombre de pièces et de fichiers. Printables et
+MakerWorld publient ces valeurs — la carte les résume en une ligne, sous le titre :
+
+> 🕐 **3 h 14 · 39 g · PETG**  🧩 **4 pièces**
+
+Ailleurs, ou quand l'auteur du modèle ne les a pas renseignées, les champs
+restent vides et se remplissent à la main : c'est celui qui a l'imprimante qui a
+le dernier mot, après un passage au trancheur.
+
+![Le bloc Impression du panneau](docs/images/cout-impression.png)
+
+Le récapitulatif suit la saisie : on tape `214`, on lit `3 h 34`.
+
+---
+
+## Un panneau, pas une fenêtre modale
+
+Cliquez une carte : le détail s'ouvre **à côté** du tableau, qui reste visible et
+continue de se rafraîchir. Rien n'est bloqué — on peut déplacer une autre carte
+pendant qu'on écrit. La carte concernée est cerclée, sans quoi on ne saurait pas
+de laquelle le panneau parle.
+
+![Le panneau latéral](docs/images/panneau-lateral.png)
+
+Quantité, couleur, remarque, échéance, colonne, suppression : tout est là. Et
+enregistrer ne referme rien.
+
+---
+
+## Une discussion par carte
+
+Parce que « tu peux le faire en noir plutôt ? » n'a pas sa place dans une
+remarque, et encore moins dans une conversation à part.
+
+![Le fil de discussion](docs/images/discussion.png)
+
+Le nombre de messages s'affiche sur la carte, pour qu'on sache qu'il y a quelque
+chose à lire sans ouvrir.
+
+---
+
+## Faire avancer une carte
+
+Au glisser-déposer, ou avec les deux boutons `‹` `›` en pied de carte — sur
+téléphone, le glisser-déposer reste capricieux selon les navigateurs, les boutons
+garantissent que ça marche toujours.
+
+Le tableau se rafraîchit tout seul toutes les dix secondes et au retour sur
+l'onglet : ce que l'un déplace, l'autre le voit. Et une notification part sur les
+téléphones à chaque demande, chaque déplacement et chaque message — Telegram,
+ntfy ou n'importe quel webhook.
+
+---
+
+## Les échéances, et l'oubli
+
+Une carte peut porter une date souhaitée : « dans 2 j », « demain », puis
+« 3 j de retard » en rouge quand c'est passé.
+
+Et pour que « Fait » ne devienne pas un mur : au-delà de trente jours, une carte
+terminée se replie dans un historique qui ne s'ouvre que si on le demande.
+
+| L'historique replié | Déplié |
+| --- | --- |
+| ![Colonne Fait repliée](docs/images/archive-replie.png) | ![Historique déplié](docs/images/archive.png) |
+
+---
+
+## Sur téléphone
+
+Les trois colonnes défilent horizontalement, le panneau devient une feuille qui
+monte du bas. Installable depuis Safari ou Chrome (« Ajouter à l'écran
+d'accueil ») : l'application s'ouvre alors sans barre d'adresse, comme une vraie.
+
+| Le tableau | Le panneau |
+| --- | --- |
+| ![Le tableau sur téléphone](docs/images/mobile.png) | ![Le panneau sur téléphone](docs/images/mobile-panneau.png) |
+
+---
+
+## Thème sombre, sans réglage
+
+L'application suit le thème du système. Les contrastes sont tenus au niveau AA
+dans les deux thèmes, vérifiés au pixel.
+
+![Le tableau en thème sombre](docs/images/tableau-sombre.png)
+
+<img src="docs/images/mobile-sombre.png" alt="Le tableau sombre sur téléphone" width="320">
+
+
+
+---
+
+## Un code, pas de comptes
+
+Un code partagé à l'entrée, mémorisé un an sur l'appareil. Puis on dit qui on
+est — une étiquette, pas une identité : elle sert à écrire « demandé par
+Antoine » et se change d'un clic.
+
+![L'écran du code](docs/images/code-pin.png)
 
 ---
 
@@ -110,14 +243,30 @@ Autres commandes :
 | `npm run lint` | ESLint |
 | `npm run typecheck` | vérification TypeScript |
 | `npm run build` | construction de production |
-| `npm run test:platforms` | interroge les quatre plateformes et signale celle qui a changé |
+| `npm run test:platforms` | interroge réellement chaque plateforme et signale celle qui a changé |
 | `npm run format` | Prettier sur `src` et les fichiers de configuration |
 | `npm run db:generate` | produit une migration après une modification de `src/db/schema.ts` |
 | `npm run db:migrate` | applique les migrations en attente |
 
+Les captures de ce fichier se refont en deux commandes, sur une base locale :
+
+```bash
+node scripts/seed-demo.mjs      # jeu de démonstration (efface les cartes !)
+node scripts/screenshots.mjs    # écrit dans docs/images/
+```
+
+Elles demandent Playwright, qui n'est pas une dépendance du projet :
+`npm install --no-save playwright`. Chaque carte du jeu de démonstration naît
+d'un vrai lien résolu par le serveur — ce que montrent les captures est donc ce
+que l'application produit réellement.
+
 ---
 
 ## Comment ça marche
+
+Le haut de ce fichier dit ce que fait l'application ; cette partie dit **pourquoi
+elle est faite ainsi**, décision par décision, avec les pièges rencontrés en
+route. C'est la partie à lire avant de modifier quelque chose.
 
 ### Ajouter une demande
 

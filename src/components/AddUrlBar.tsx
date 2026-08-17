@@ -82,7 +82,10 @@ export function AddUrlBar({
           inputMode="url"
           autoComplete="off"
           spellCheck={false}
-          placeholder="Collez le lien d’un modèle (Printables, MakerWorld, Thingiverse, Cults3D…)"
+          // Court exprès : sur un écran de téléphone, une phrase plus longue se
+          // fait couper en plein milieu. Les plateformes sont nommées juste
+          // en dessous, où la place ne manque pas.
+          placeholder="Collez le lien d’un modèle 3D"
           className="min-w-0 flex-1 bg-transparent py-1 text-sm outline-none placeholder:text-muted"
         />
         {value.trim() && (
@@ -96,7 +99,7 @@ export function AddUrlBar({
       </form>
 
       <p className="mt-1.5 px-1 text-xs text-muted" aria-live="polite">
-        {hint ?? 'Collez un lien et la carte se crée toute seule. Un texte libre marche aussi.'}
+        {hint ?? 'Printables, MakerWorld, Thingiverse, Thangs, Cults3D… ou un texte libre.'}
       </p>
     </div>
   )
