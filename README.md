@@ -17,14 +17,13 @@ chaque déplacement et chaque message.
 
 ## Mise en ligne sur Netlify
 
+Trois étapes, aucune commande à taper.
+
 ### 1. Créer le site
 
 Sur [app.netlify.com](https://app.netlify.com) : **Add new site → Import an
-existing project**, choisir ce dépôt et la branche
-`claude/3d-print-sharing-app-wk06k6`.
-
-La commande de build et le dossier publié sont déjà décrits dans `netlify.toml`,
-il n'y a rien à saisir.
+existing project**, puis choisir ce dépôt. La commande de build et le dossier
+publié sont déjà décrits dans `netlify.toml`, il n'y a rien à saisir.
 
 ### 2. Brancher la base de données
 
@@ -32,8 +31,9 @@ Dans le site : **Project configuration → Database → Netlify DB**, puis *Clai
 database* pour la conserver au-delà de la période d'essai (le niveau gratuit
 suffit très largement ici).
 
-Netlify crée une base Postgres (Neon) et injecte tout seul la variable
-`DATABASE_URL`.
+Netlify crée une base Postgres (Neon) et renseigne `DATABASE_URL` tout seul. Les
+tables, elles, sont créées automatiquement au premier déploiement : la commande de
+build applique les migrations avant de construire le site.
 
 ### 3. Ajouter les deux variables restantes
 
@@ -51,29 +51,27 @@ Ajoutez-y aussi, si vous voulez les notifications, les variables d'un des trois
 canaux décrits dans `.env.example` — le plus simple étant `TELEGRAM_BOT_TOKEN` +
 `TELEGRAM_CHAT_ID`. Sans elles, l'application marche mais n'envoie rien.
 
-### 4. Créer la table
+Puis **Deploys → Trigger deploy**. À la première visite, le site demande le code,
+puis qui vous êtes.
 
-Une seule fois, depuis votre machine, avec l'URL de la base Neon (visible dans
-l'onglet Database de Netlify) :
+### Si quelque chose ne va pas
 
-```bash
-npm install
-DATABASE_URL="postgresql://…la vraie URL Neon…" npm run db:push
-```
+Le build réussit même mal configuré, parce qu'il ne touche pas à la base quand
+`DATABASE_URL` est absente. Un déploiement vert ne prouve donc pas que tout est en
+place :
 
-### 5. Déployer
-
-**Deploys → Trigger deploy**. Le site est en ligne ; à la première visite il
-demande le code, puis qui vous êtes.
-
----
+| Symptôme | Cause |
+| --- | --- |
+| Le code est refusé avec « L'application n'est pas configurée » | `APP_PIN` ou `APP_SECRET` manque |
+| Le journal de build affiche « DATABASE_URL absente » | la base n'est pas branchée, ou pas encore *claimed* |
+| Le tableau renvoie une erreur 500 | les migrations n'ont pas tourné ; relancez un déploiement |
 
 ## En local
 
 ```bash
 npm install
 cp .env.example .env.local     # puis remplir les trois variables
-npm run db:push                # crée la table
+npm run db:migrate             # crée les tables
 npm run dev                    # http://localhost:3000
 ```
 
@@ -88,6 +86,8 @@ Autres commandes :
 | `npm run build` | construction de production |
 | `npm run test:platforms` | interroge les quatre plateformes et signale celle qui a changé |
 | `npm run format` | Prettier sur `src` et les fichiers de configuration |
+| `npm run db:generate` | produit une migration après une modification de `src/db/schema.ts` |
+| `npm run db:migrate` | applique les migrations en attente |
 
 ---
 
@@ -224,6 +224,27 @@ versionnés : ce script ne tourne ni au build ni au déploiement.
 Les emojis subsistent dans le **texte des notifications** (`🖨️`, `📦`, `💬`) :
 ce sont des messages Telegram ou ntfy en texte brut, où une icône vectorielle
 n'aurait pas de sens.
+
+### Migrations
+
+Le schéma est appliqué par des migrations versionnées (`drizzle/`), et non par
+`drizzle-kit push`. C'est ce qui permet de faire tourner l'opération
+automatiquement au déploiement : `push` re-compare le schéma à chaque exécution et
+peut supprimer une colonne sans prévenir, là où une migration est déterministe et
+n'est jouée qu'une fois — Drizzle tient son journal dans la base.
+
+`scripts/migrate.mjs` encadre l'appel : il ne fait rien sans `DATABASE_URL`, pour
+qu'un build hors ligne reste possible, mais interrompt le déploiement si une
+migration échoue alors que la base est joignable. Mieux vaut un déploiement rouge
+qu'un site en ligne dont le schéma ne correspond pas au code.
+
+Après avoir modifié `src/db/schema.ts` : `npm run db:generate`, puis commiter le
+fichier SQL produit. Le déploiement s'occupe du reste.
+
+La première migration porte des gardes `IF NOT EXISTS` ajoutées à la main, que
+drizzle-kit ne produit pas : une base créée auparavant avec `db:push` possède déjà
+les tables sans posséder le journal, et le premier déploiement échouerait sans
+elles.
 
 ### Le décompte des messages, et un piège Drizzle
 

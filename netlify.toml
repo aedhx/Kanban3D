@@ -1,5 +1,8 @@
 [build]
-  command = "npm run build"
+  # Les migrations tournent avant la construction : rien à lancer à la main au
+  # déploiement. Le script ne fait rien si DATABASE_URL est absente, et
+  # interrompt le déploiement si une migration échoue (cf. scripts/migrate.mjs).
+  command = "npm run db:migrate && npm run build"
   publish = ".next"
 
 [build.environment]
