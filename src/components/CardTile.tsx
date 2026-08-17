@@ -5,7 +5,14 @@ import { CSS } from '@dnd-kit/utilities'
 import { STATUSES, STATUS_LABELS, type Status } from '@/db/schema'
 import { adjacentStatus, type BoardCard } from '@/lib/board'
 import { dueState, formatDue, type DueState } from '@/lib/dates'
-import { IconComments, IconDueDate, IconMovedBy, IconNext, IconOverdue, IconPrevious } from './icons'
+import {
+  IconComments,
+  IconDueDate,
+  IconMovedBy,
+  IconNext,
+  IconOverdue,
+  IconPrevious,
+} from './icons'
 import { Thumbnail } from './Thumbnail'
 
 /** Petite pastille colorée devinée à partir du nom de couleur saisi. */
@@ -30,7 +37,10 @@ const COLOR_SWATCHES: Record<string, string> = {
 function swatchFor(color: string | null): string | null {
   if (!color) return null
   // On retire les accents pour que « doré » retrouve « or », « vert clair » → vert…
-  const key = color.toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '')
+  const key = color
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
   for (const [name, hex] of Object.entries(COLOR_SWATCHES)) {
     if (key.includes(name)) return hex
   }
@@ -82,7 +92,9 @@ function CardContent({ card }: { card: BoardCard }) {
           {card.source && <span className="truncate">{card.source}</span>}
 
           {due && (
-            <span className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 ${DUE_STYLES[due]}`}>
+            <span
+              className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 ${DUE_STYLES[due]}`}
+            >
               {due === 'overdue' ? (
                 <IconOverdue size={12} weight="fill" aria-hidden />
               ) : (
@@ -160,10 +172,13 @@ function CardFooter({
 
 export function CardTile({
   card,
+  selected = false,
   onOpen,
   onMove,
 }: {
   card: BoardCard
+  /** Carte actuellement ouverte dans le panneau latéral. */
+  selected?: boolean
   onOpen: (card: BoardCard) => void
   onMove: (card: BoardCard, status: Status) => void
 }) {
@@ -176,7 +191,10 @@ export function CardTile({
       ref={setNodeRef}
       style={{ transform: CSS.Translate.toString(transform), transition }}
       className={[
-        'rounded-xl border border-line bg-surface shadow-sm',
+        'rounded-xl border bg-surface shadow-sm transition-colors',
+        // Le panneau restant ouvert à côté du tableau, il faut voir de quelle
+        // carte il parle.
+        selected ? 'border-accent ring-1 ring-accent' : 'border-line',
         isDragging ? 'opacity-30' : '',
       ].join(' ')}
     >
@@ -193,6 +211,7 @@ export function CardTile({
           }
         }}
         className="cursor-grab rounded-t-xl active:cursor-grabbing"
+        aria-current={selected ? 'true' : undefined}
         aria-label={`${card.title} — ouvrir le détail`}
       >
         <CardContent card={card} />

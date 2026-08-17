@@ -28,14 +28,16 @@ const commentCount = sql<number>`count(${comments.id})::int`
  * rafraîchissement.
  */
 export async function listCards(): Promise<CardWithCount[]> {
-  return getDb()
-    .select({ ...getTableColumns(cards), commentCount })
-    .from(cards)
-    .leftJoin(comments, eq(comments.cardId, cards.id))
-    // `cards.id` étant la clé primaire, Postgres accepte les autres colonnes
-    // sans les répéter ici.
-    .groupBy(cards.id)
-    .orderBy(asc(cards.position), asc(cards.createdAt))
+  return (
+    getDb()
+      .select({ ...getTableColumns(cards), commentCount })
+      .from(cards)
+      .leftJoin(comments, eq(comments.cardId, cards.id))
+      // `cards.id` étant la clé primaire, Postgres accepte les autres colonnes
+      // sans les répéter ici.
+      .groupBy(cards.id)
+      .orderBy(asc(cards.position), asc(cards.createdAt))
+  )
 }
 
 /** Une carte seule, dans la même forme que `listCards`. */

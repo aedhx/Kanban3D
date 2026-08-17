@@ -29,10 +29,9 @@ type Transport = {
 function compose(event: NotificationEvent): string {
   switch (event.kind) {
     case 'created': {
-      const details = [
-        event.quantity > 1 ? `×${event.quantity}` : null,
-        event.color,
-      ].filter(Boolean)
+      const details = [event.quantity > 1 ? `×${event.quantity}` : null, event.color].filter(
+        Boolean,
+      )
       const suffix = details.length ? ` (${details.join(', ')})` : ''
       return `🖨️ ${event.by} demande « ${event.title} »${suffix}`
     }

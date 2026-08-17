@@ -11,6 +11,7 @@ import {
   normalizeQuantity,
   normalizeText,
 } from '@/lib/cards'
+import { fetchModelMetadata } from '@/lib/metadata'
 import { notify } from '@/lib/notify'
 
 export const runtime = 'nodejs'
@@ -36,9 +37,23 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Requête invalide.' }, { status: 400 })
   }
 
-  const title = normalizeText(body.title, 300)
+  const url = normalizeText(body.url, 1000)
+  let title = normalizeText(body.title, 300)
+
+  // Coller un lien suffit à créer une carte : c'est le serveur qui va chercher
+  // titre, image et auteur. Le faire ici plutôt que dans le navigateur évite un
+  // aller-retour, et garantit qu'une carte n'arrive jamais sans nom.
+  let resolved: Awaited<ReturnType<typeof fetchModelMetadata>> | null = null
+  if (url && !title) {
+    resolved = await fetchModelMetadata(url)
+    title = normalizeText(resolved.title, 300)
+  }
+
   if (!title) {
-    return NextResponse.json({ error: 'Le titre est obligatoire.' }, { status: 400 })
+    return NextResponse.json(
+      { error: 'Donnez un titre, ou collez le lien d’un modèle.' },
+      { status: 400 },
+    )
   }
 
   const requestedBy = normalizeText(body.requestedBy, 60) ?? 'Quelqu’un'
@@ -58,10 +73,10 @@ export async function POST(request: Request) {
       title,
       status,
       position: (max ?? 0) + POSITION_STEP,
-      url: normalizeText(body.url, 1000),
-      imageUrl: normalizeText(body.imageUrl, 1000),
-      author: normalizeText(body.author, 120),
-      source: normalizeText(body.source, 60),
+      url,
+      imageUrl: normalizeText(body.imageUrl, 1000) ?? resolved?.imageUrl ?? null,
+      author: normalizeText(body.author, 120) ?? resolved?.author ?? null,
+      source: normalizeText(body.source, 60) ?? resolved?.source ?? null,
       quantity: normalizeQuantity(body.quantity),
       color: normalizeText(body.color, 60),
       notes: normalizeText(body.notes),

@@ -296,10 +296,9 @@ async function fromMakerWorld(url: URL): Promise<ModelMetadata | null> {
   const id = url.pathname.match(/\/models\/(\d+)/)?.[1]
   if (!id) return null
 
-  const res = await fetchWithTimeout(
-    `https://makerworld.com/api/v1/design-service/design/${id}`,
-    { headers: { Accept: 'application/json' } },
-  )
+  const res = await fetchWithTimeout(`https://makerworld.com/api/v1/design-service/design/${id}`, {
+    headers: { Accept: 'application/json' },
+  })
   if (!res.ok) return null
 
   const json = (await res.json()) as {

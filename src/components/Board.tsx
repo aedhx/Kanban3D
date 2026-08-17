@@ -15,12 +15,12 @@ import {
 } from '@dnd-kit/core'
 import { sortableKeyboardCoordinates } from '@dnd-kit/sortable'
 import { STATUSES, type Status } from '@/db/schema'
-import { columnCards, resolveDrop, type BoardCard } from '@/lib/board'
+import { columnCards, pendingCard, resolveDrop, type BoardCard } from '@/lib/board'
 import { positionBetween } from '@/lib/cards'
 import { PEOPLE } from '@/lib/people'
 import { useIdentity } from '@/lib/useIdentity'
-import { AddCardForm, type NewCardInput } from './AddCardForm'
-import { CardModal } from './CardModal'
+import { AddUrlBar } from './AddUrlBar'
+import { CardPanel } from './CardPanel'
 import { CardPreview } from './CardTile'
 import { IconIdentity, IconOffline } from './icons'
 import { Column } from './Column'
@@ -33,6 +33,7 @@ export function Board({ initialCards }: { initialCards: BoardCard[] }) {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [activeId, setActiveId] = useState<string | null>(null)
   const [offline, setOffline] = useState(false)
+  const [addError, setAddError] = useState<string | null>(null)
 
   // Le rafraîchissement périodique ne doit jamais écraser une modification en
   // cours : on le met en pause pendant un glisser ou un appel réseau.
@@ -82,20 +83,49 @@ export function Board({ initialCards }: { initialCards: BoardCard[] }) {
     }
   }, [])
 
+  /**
+   * Crée une carte à partir d'un lien (ou d'un titre libre). Une carte
+   * provisoire s'affiche tout de suite, le temps que le serveur aille chercher
+   * les informations du modèle, puis elle est remplacée par la vraie.
+   */
   const createCard = useCallback(
-    async (input: NewCardInput) => {
-      await withBusy(async () => {
-        const res = await fetch('/api/cards', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ...input, requestedBy: identity ?? PEOPLE[0] }),
+    async (payload: { url?: string; title?: string }) => {
+      const requestedBy = identity ?? PEOPLE[0]
+      const temporaryId = `pending-${crypto.randomUUID()}`
+      const label = payload.title ?? shortenUrl(payload.url ?? '')
+      setCards((current) => [...current, pendingCard(temporaryId, label, requestedBy)])
+
+      try {
+        await withBusy(async () => {
+          const res = await fetch('/api/cards', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ...payload, requestedBy }),
+          })
+          if (!res.ok) throw new Error('création refusée')
+          const { card } = (await res.json()) as { card: BoardCard }
+          setCards((current) => current.map((item) => (item.id === temporaryId ? card : item)))
         })
-        if (!res.ok) throw new Error('création refusée')
-        const { card } = (await res.json()) as { card: BoardCard }
-        setCards((current) => [...current, card])
-      })
+      } catch {
+        // On retire la carte provisoire : mieux vaut rien qu'une carte fantôme.
+        setCards((current) => current.filter((item) => item.id !== temporaryId))
+        setAddError("Le lien n'a pas pu être ajouté. Réessayez.")
+      }
     },
     [identity, withBusy],
+  )
+
+  const handleAdd = useCallback(
+    (entries: { urls: string[] } | { title: string }) => {
+      setAddError(null)
+      if ('title' in entries) {
+        void createCard({ title: entries.title })
+        return
+      }
+      // Un collage peut contenir plusieurs liens : on les enchaîne.
+      for (const url of entries.urls) void createCard({ url })
+    },
+    [createCard],
   )
 
   /** Applique un changement localement d'abord, puis le confirme au serveur. */
@@ -140,7 +170,9 @@ export function Board({ initialCards }: { initialCards: BoardCard[] }) {
       setCards((current) => current.filter((item) => item.id !== card.id))
       try {
         await withBusy(async () => {
-          const res = await fetch(`/api/cards/${card.id}`, { method: 'DELETE' })
+          const res = await fetch(`/api/cards/${card.id}`, {
+            method: 'DELETE',
+          })
           if (!res.ok) throw new Error('suppression refusée')
         })
       } catch {
@@ -171,8 +203,12 @@ export function Board({ initialCards }: { initialCards: BoardCard[] }) {
     // Un petit seuil de déplacement : sans lui, le simple clic pour ouvrir une
     // carte serait interprété comme un début de glisser.
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 180, tolerance: 8 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+    useSensor(TouchSensor, {
+      activationConstraint: { delay: 180, tolerance: 8 },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    }),
   )
 
   function handleDragStart(event: DragStartEvent) {
@@ -234,60 +270,77 @@ export function Board({ initialCards }: { initialCards: BoardCard[] }) {
   }
 
   return (
-    <main className="mx-auto flex min-h-dvh max-w-5xl flex-col gap-4 p-4 sm:p-6">
-      <header className="flex items-center justify-between gap-3">
-        <h1 className="text-lg font-semibold tracking-tight">Kanban3D</h1>
-        <div className="flex items-center gap-2 text-xs text-muted">
-          {offline && (
-            <span className="inline-flex items-center gap-1 text-amber-700 dark:text-amber-400">
-              <IconOffline size={14} aria-hidden />
-              hors ligne
-            </span>
-          )}
-          <button
-            type="button"
-            onClick={() => {
-              const next = PEOPLE[(PEOPLE.indexOf(identity ?? PEOPLE[0]) + 1) % PEOPLE.length]
-              choose(next)
+    // Le panneau latéral est un frère du tableau dans le flux : sur grand écran
+    // il rétrécit le tableau au lieu de le recouvrir, et le kanban reste donc
+    // visible et à jour pendant qu'on remplit une carte.
+    <div className="flex min-h-dvh">
+      <main className="min-w-0 flex-1 p-4 sm:p-6">
+        {/* Plafond de largeur pour que le tableau reste lisible sur grand écran,
+            tout en se resserrant de lui-même quand le panneau prend sa place. */}
+        <div className="mx-auto flex w-full max-w-6xl flex-col gap-4">
+          <header className="flex items-center justify-between gap-3">
+            <h1 className="text-lg font-semibold tracking-tight">Kanban3D</h1>
+            <div className="flex items-center gap-2 text-xs text-muted">
+              {offline && (
+                <span className="inline-flex items-center gap-1 text-amber-700 dark:text-amber-400">
+                  <IconOffline size={14} aria-hidden />
+                  hors ligne
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={() => {
+                  const next = PEOPLE[(PEOPLE.indexOf(identity ?? PEOPLE[0]) + 1) % PEOPLE.length]
+                  choose(next)
+                }}
+                title="Changer d’utilisateur"
+                className="inline-flex items-center gap-1.5 rounded-full border border-line px-3 py-1 transition-colors hover:border-accent hover:text-accent"
+              >
+                <IconIdentity size={14} aria-hidden />
+                {identity ?? '—'}
+              </button>
+            </div>
+          </header>
+
+          <div>
+            <AddUrlBar onAdd={handleAdd} />
+            {addError && (
+              <p role="alert" className="mt-1.5 px-1 text-xs text-red-600 dark:text-red-400">
+                {addError}
+              </p>
+            )}
+          </div>
+
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCorners}
+            onDragStart={handleDragStart}
+            onDragEnd={handleDragEnd}
+            onDragCancel={() => {
+              draggingRef.current = false
+              setActiveId(null)
             }}
-            title="Changer d’utilisateur"
-            className="inline-flex items-center gap-1.5 rounded-full border border-line px-3 py-1 transition-colors hover:border-accent hover:text-accent"
           >
-            <IconIdentity size={14} aria-hidden />
-            {identity ?? '—'}
-          </button>
+            <div className="flex snap-x snap-mandatory gap-3 overflow-x-auto pb-2 sm:overflow-visible">
+              {STATUSES.map((status) => (
+                <Column
+                  key={status}
+                  status={status}
+                  cards={columnCards(cards, status)}
+                  selectedId={editingId}
+                  onOpen={(card) => setEditingId(card.id)}
+                  onMove={moveCard}
+                />
+              ))}
+            </div>
+
+            <DragOverlay>{activeCard && <CardPreview card={activeCard} />}</DragOverlay>
+          </DndContext>
         </div>
-      </header>
-
-      <AddCardForm onCreate={createCard} />
-
-      <DndContext
-        sensors={sensors}
-        collisionDetection={closestCorners}
-        onDragStart={handleDragStart}
-        onDragEnd={handleDragEnd}
-        onDragCancel={() => {
-          draggingRef.current = false
-          setActiveId(null)
-        }}
-      >
-        <div className="flex snap-x snap-mandatory gap-3 overflow-x-auto pb-2 sm:overflow-visible">
-          {STATUSES.map((status) => (
-            <Column
-              key={status}
-              status={status}
-              cards={columnCards(cards, status)}
-              onOpen={(card) => setEditingId(card.id)}
-              onMove={moveCard}
-            />
-          ))}
-        </div>
-
-        <DragOverlay>{activeCard && <CardPreview card={activeCard} />}</DragOverlay>
-      </DndContext>
+      </main>
 
       {editing && (
-        <CardModal
+        <CardPanel
           card={editing}
           identity={identity ?? PEOPLE[0]}
           onClose={() => setEditingId(null)}
@@ -297,6 +350,17 @@ export function Board({ initialCards }: { initialCards: BoardCard[] }) {
           onCommentCount={setCommentCount}
         />
       )}
-    </main>
+    </div>
   )
+}
+
+/** Étiquette provisoire d'une carte en cours de création : « printables.com/… ». */
+function shortenUrl(raw: string): string {
+  try {
+    const url = new URL(raw)
+    const path = url.pathname.replace(/\/$/, '')
+    return `${url.hostname.replace(/^www\./, '')}${path.length > 24 ? `${path.slice(0, 24)}…` : path}`
+  } catch {
+    return raw.slice(0, 60)
+  }
 }

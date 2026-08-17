@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { STATUSES, STATUS_LABELS, type Status } from '@/db/schema'
 import type { BoardCard } from '@/lib/board'
 import { formatDate, formatDue } from '@/lib/dates'
@@ -18,7 +18,16 @@ type Props = {
   onCommentCount: (id: string, count: number) => void
 }
 
-export function CardModal({
+/**
+ * Détail d'une carte, en panneau latéral plutôt qu'en fenêtre modale : sur
+ * grand écran il se pose à côté du tableau, qui reste visible et continue de se
+ * rafraîchir pendant qu'on écrit. Sous `lg`, faute de place, il redevient une
+ * feuille qui monte du bas.
+ *
+ * Volontairement non modal sur grand écran : pas de piège de focus, pas de
+ * voile bloquant — on doit pouvoir déplacer une carte du tableau panneau ouvert.
+ */
+export function CardPanel({
   card,
   identity,
   onClose,
@@ -34,6 +43,20 @@ export function CardModal({
   const [dueDate, setDueDate] = useState(card.dueDate ?? '')
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const panelRef = useRef<HTMLElement>(null)
+
+  // Le panneau reste monté quand on passe d'une carte à l'autre : il faut donc
+  // recharger les champs à chaque changement de carte.
+  useEffect(() => {
+    setTitle(card.title)
+    setQuantity(card.quantity)
+    setColor(card.color ?? '')
+    setNotes(card.notes ?? '')
+    setDueDate(card.dueDate ?? '')
+    setConfirmingDelete(false)
+    setSaved(false)
+  }, [card.id, card.title, card.quantity, card.color, card.notes, card.dueDate])
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
@@ -58,24 +81,29 @@ export function CardModal({
         notes: notes.trim() || null,
         dueDate: dueDate || null,
       })
-      onClose()
+      // On ne referme pas : le panneau doit pouvoir rester ouvert à côté du
+      // tableau. Un accusé discret suffit.
+      setSaved(true)
+      window.setTimeout(() => setSaved(false), 2000)
     } finally {
       setBusy(false)
     }
   }
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-0 sm:items-center sm:p-6"
-      onClick={onClose}
-      role="presentation"
-    >
+    <>
+      {/* Voile tactile uniquement : sur grand écran le panneau est dans le flux. */}
       <div
-        role="dialog"
-        aria-modal="true"
-        aria-label="Modifier la demande"
-        onClick={(e) => e.stopPropagation()}
-        className="max-h-[90dvh] w-full max-w-md overflow-y-auto rounded-t-2xl border border-line bg-surface p-5 shadow-xl sm:rounded-2xl"
+        onClick={onClose}
+        className="fixed inset-0 z-30 bg-black/40 lg:hidden"
+        role="presentation"
+      />
+
+      <aside
+        ref={panelRef}
+        aria-label={`Détail de « ${card.title} »`}
+        data-testid="card-panel"
+        className="fixed inset-x-0 bottom-0 z-40 max-h-[85dvh] overflow-y-auto rounded-t-2xl border-t border-line bg-surface p-5 shadow-xl lg:sticky lg:top-0 lg:z-auto lg:h-dvh lg:max-h-none lg:w-[380px] lg:shrink-0 lg:rounded-none lg:border-t-0 lg:border-l lg:shadow-none xl:w-[420px]"
       >
         <div className="flex items-start gap-3">
           <Thumbnail
@@ -104,7 +132,7 @@ export function CardModal({
           <button
             type="button"
             onClick={onClose}
-            aria-label="Fermer"
+            aria-label="Fermer le panneau"
             className="-mt-1 shrink-0 rounded p-1 text-muted hover:text-ink"
           >
             <IconClose size={18} aria-hidden />
@@ -143,6 +171,7 @@ export function CardModal({
               </label>
               <input
                 id="m-color"
+                list="couleurs-courantes"
                 value={color}
                 onChange={(e) => setColor(e.target.value)}
                 placeholder="Peu importe"
@@ -200,13 +229,13 @@ export function CardModal({
             </div>
           </fieldset>
 
-          <div className="mt-5 flex gap-2">
+          <div className="mt-5 flex items-center gap-2">
             <button
               type="submit"
               disabled={busy || !title.trim()}
               className="flex-1 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-ink disabled:opacity-40"
             >
-              {busy ? 'Enregistrement…' : 'Enregistrer'}
+              {busy ? 'Enregistrement…' : saved ? 'Enregistré' : 'Enregistrer'}
             </button>
             {confirmingDelete ? (
               <button
@@ -225,7 +254,7 @@ export function CardModal({
                 type="button"
                 onClick={() => setConfirmingDelete(true)}
                 aria-label="Supprimer la demande"
-                className="inline-flex items-center gap-1.5 rounded-lg border border-line px-4 py-2 text-sm text-muted hover:border-red-500 hover:text-red-500"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-line px-3 py-2 text-sm text-muted hover:border-red-500 hover:text-red-500"
               >
                 <IconDelete size={15} aria-hidden />
                 Supprimer
@@ -239,7 +268,7 @@ export function CardModal({
           author={identity}
           onCountChange={(count) => onCommentCount(card.id, count)}
         />
-      </div>
-    </div>
+      </aside>
+    </>
   )
 }

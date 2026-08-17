@@ -19,9 +19,7 @@ function requireEnv(): { pin: string; secret: string } {
   const pin = process.env.APP_PIN
   const secret = process.env.APP_SECRET
   if (!pin || !secret) {
-    throw new Error(
-      'APP_PIN et APP_SECRET doivent être définies. Voir .env.example.',
-    )
+    throw new Error('APP_PIN et APP_SECRET doivent être définies. Voir .env.example.')
   }
   return { pin, secret }
 }

@@ -12,6 +12,38 @@ export type BoardCard = Omit<CardWithCount, 'createdAt' | 'updatedAt' | 'doneAt'
   createdAt: string
   updatedAt: string
   doneAt: string | null
+  /**
+   * Carte affichée avant que le serveur ne l'ait créée : le temps qu'il aille
+   * chercher les informations du modèle, on montre déjà quelque chose. Champ
+   * purement local, jamais renvoyé par l'API.
+   */
+  pending?: boolean
+}
+
+/** Carte provisoire affichée dès le collage d'un lien. */
+export function pendingCard(id: string, title: string, requestedBy: string): BoardCard {
+  const now = new Date().toISOString()
+  return {
+    id,
+    status: 'todo',
+    position: Number.MAX_SAFE_INTEGER,
+    url: null,
+    title,
+    imageUrl: null,
+    author: null,
+    source: null,
+    quantity: 1,
+    color: null,
+    notes: null,
+    dueDate: null,
+    requestedBy,
+    lastMovedBy: null,
+    doneAt: null,
+    createdAt: now,
+    updatedAt: now,
+    commentCount: 0,
+    pending: true,
+  }
 }
 
 export function toBoardCard(card: CardWithCount): BoardCard {
@@ -28,9 +60,7 @@ export function columnCards(cards: BoardCard[], status: Status): BoardCard[] {
   return cards
     .filter((card) => card.status === status)
     .sort((a, b) =>
-      a.position !== b.position
-        ? a.position - b.position
-        : a.createdAt.localeCompare(b.createdAt),
+      a.position !== b.position ? a.position - b.position : a.createdAt.localeCompare(b.createdAt),
     )
 }
 
@@ -56,7 +86,8 @@ export function resolveDrop(
   if (!active) return null
 
   const overCard = cards.find((card) => card.id === overId)
-  const targetStatus: Status | undefined = overCard?.status ?? (isStatus(overId) ? overId : undefined)
+  const targetStatus: Status | undefined =
+    overCard?.status ?? (isStatus(overId) ? overId : undefined)
   if (!targetStatus) return null
 
   const column = columnCards(cards, targetStatus)

@@ -1,16 +1,17 @@
 # Kanban3D
 
-Un tableau d'impressions 3D partagé à deux. On colle le lien d'un modèle
-(Printables, MakerWorld, Thingiverse, Cults3D…), l'app récupère le titre, l'image
-et l'auteur, on précise la quantité et la couleur, et la carte avance de colonne
-au fil de l'impression.
+Un tableau d'impressions 3D partagé à deux. **On colle le lien d'un modèle**
+(Printables, MakerWorld, Thingiverse, Cults3D…) **et la carte se crée toute
+seule** dans « À imprimer », titre, image et auteur compris. Il ne reste plus
+qu'à la faire avancer de colonne au fil de l'impression.
 
 **À imprimer → En impression → Fait.** Pas de compte, pas de collection, pas
 d'export : un seul écran, un code partagé.
 
-Chaque carte porte une quantité, une couleur, une remarque, une échéance
-facultative et un fil de discussion. Une notification part sur vos téléphones à
-chaque demande, chaque déplacement et chaque message.
+Quantité, couleur, remarque et échéance se règlent ensuite dans le panneau
+latéral, si besoin — le plus souvent il n'y en a pas. Chaque carte a aussi son
+fil de discussion, et une notification part sur vos téléphones à chaque demande,
+chaque déplacement et chaque message.
 
 ---
 
@@ -86,10 +87,40 @@ Autres commandes :
 | `npm run typecheck` | vérification TypeScript |
 | `npm run build` | construction de production |
 | `npm run test:platforms` | interroge les quatre plateformes et signale celle qui a changé |
+| `npm run format` | Prettier sur `src` et les fichiers de configuration |
 
 ---
 
 ## Comment ça marche
+
+### Ajouter une demande
+
+Un seul champ. Coller un lien crée la carte sans autre geste : `AddUrlBar`
+intercepte l'événement `paste`, et `POST /api/cards` n'a besoin que de l'URL —
+c'est **le serveur** qui résout les informations du modèle. Un aller-retour
+plutôt que deux, et aucune carte ne peut arriver sans nom.
+
+Une carte provisoire s'affiche pendant la résolution (une ou deux secondes selon
+la plateforme), puis cède la place à la vraie. Si la création échoue, elle
+disparaît : mieux vaut rien qu'une carte fantôme.
+
+Un collage qui contient plusieurs liens crée plusieurs cartes. Un texte qui n'est
+pas un lien devient le titre de la carte, pour une demande sans modèle en ligne.
+
+### Le panneau de détail
+
+`CardPanel` est un panneau latéral, pas une fenêtre modale : au-delà de `lg` il
+se place à côté du tableau, qui reste visible et continue de se rafraîchir
+pendant qu'on remplit une carte. Il est donc **volontairement non modal** — ni
+piège de focus, ni voile bloquant, et on peut déplacer une carte du tableau
+panneau ouvert. La carte concernée est cerclée de la couleur d'accent, sans quoi
+on ne saurait pas de laquelle le panneau parle.
+
+Sous `lg`, faute de place pour deux colonnes, il redevient une feuille qui monte
+du bas, avec un voile tactile.
+
+Enregistrer ne referme pas le panneau : passer d'une carte à l'autre doit rester
+fluide.
 
 ### Récupération des informations d'un modèle
 

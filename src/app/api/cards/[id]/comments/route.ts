@@ -58,10 +58,7 @@ export async function POST(request: Request, { params }: Params) {
 
   // On vérifie la carte pour renvoyer 404 plutôt qu'une violation de clé
   // étrangère, et pour disposer de son titre dans la notification.
-  const [card] = await db
-    .select({ title: cards.title })
-    .from(cards)
-    .where(eq(cards.id, id))
+  const [card] = await db.select({ title: cards.title }).from(cards).where(eq(cards.id, id))
   if (!card) {
     return NextResponse.json({ error: 'Carte introuvable.' }, { status: 404 })
   }
