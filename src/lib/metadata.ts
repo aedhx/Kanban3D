@@ -507,6 +507,15 @@ function printProfile(
   }
 }
 
+/** Comparaison indulgente de deux noms : casse, accents et ponctuation ignorés. */
+function aplati(value: string): string {
+  return value
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .replace(/[^a-z0-9]/g, '')
+}
+
 /** Pages où l'on atterrit quand le modèle demandé n'existe pas ou est protégé. */
 const LANDING_SEGMENTS = new Set([
   'index',
@@ -691,10 +700,17 @@ async function fromOpenGraph(url: URL, source?: string): Promise<ModelMetadata |
     siteName && match.toLowerCase().includes(siteName.toLowerCase()) ? '' : match,
   )
 
+  // Un titre qui n'est que le nom de la plateforme ne nomme aucun modèle :
+  // Fab365 sert « FAB365 » sur toutes ses fiches. Le nom déduit de l'URL —
+  // « Star wars x wing » — vaut mieux que la marque du site.
+  const propre = title.trim() || rawTitle
+  const marques = [siteName, source, platformLabel(url.hostname)]
+  if (marques.some((marque) => marque && aplati(marque) === aplati(propre))) return null
+
   const image = meta.get('og:image') ?? meta.get('twitter:image') ?? ld.imageUrl
 
   return {
-    title: title.trim() || rawTitle,
+    title: propre,
     imageUrl: image && /^https?:\/\//i.test(image) ? image : undefined,
     author: split.author ?? ld.author,
     description:

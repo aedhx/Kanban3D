@@ -331,6 +331,9 @@ Deux pièges de lecture, rencontrés pour de vrai :
   `/login`, `/search`…
 - **Le poids qui n'en est pas un.** Thangs expose un champ `profileWeight` : c'est
   un poids de classement, pas des grammes de filament. Il n'est pas utilisé.
+- **Le titre qui n'est que la marque.** Fab365 sert « FAB365 » comme `og:title` sur
+  toutes ses fiches. Un titre égal au nom de la plateforme est donc refusé, et
+  l'URL fournit un meilleur nom : « Star wars x wing ».
 
 ### Le cas Thingiverse
 
