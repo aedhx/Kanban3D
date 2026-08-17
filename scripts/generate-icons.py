@@ -41,7 +41,15 @@ FICHIERS = [
     ('icon-512.png', 512, 0.62),
     ('icon-maskable-512.png', 512, 0.52),
     ('apple-icon.png', 180, 0.62),
+    # Onglet du navigateur : à 32 px le cube doit prendre plus de place, sinon il
+    # ne reste qu'une pastille orange indistincte.
+    ('icon-32.png', 32, 0.74),
 ]
+
+# Tailles empilées dans favicon.ico. Les navigateurs demandent /favicon.ico
+# d'eux-mêmes, avant même de lire le HTML : sans ce fichier, la console affiche
+# un 404 et certains contextes (favoris, raccourcis Windows) restent sans icône.
+FAVICON = [16, 24, 32, 48, 64]
 
 
 def chemin_du_cube() -> str:
@@ -81,6 +89,23 @@ def icône(tracé: str, taille: int, proportion: float, maskable: bool) -> 'Imag
     return Image.alpha_composite(fond, calque)
 
 
+def favicon(tracé: str) -> None:
+    """Un seul .ico contenant plusieurs tailles, chacune dessinée à sa taille.
+
+    Laisser Pillow réduire une grande image donnerait un cube empâté à 16 px :
+    on redessine donc le tracé pour chaque taille, et le rayon des coins suit,
+    proportionnellement.
+    """
+    calques = [icône(tracé, taille, 0.74, maskable=False) for taille in FAVICON]
+    calques[-1].save(
+        SORTIE / 'favicon.ico',
+        format='ICO',
+        sizes=[(taille, taille) for taille in FAVICON],
+        append_images=calques[:-1],
+    )
+    print(f'  écrit public/favicon.ico  ({", ".join(str(t) for t in FAVICON)}px)')
+
+
 def main() -> None:
     tracé = chemin_du_cube()
     SORTIE.mkdir(exist_ok=True)
@@ -88,6 +113,7 @@ def main() -> None:
         maskable = 'maskable' in nom
         icône(tracé, taille, proportion, maskable).save(SORTIE / nom)
         print(f'  écrit public/{nom}  ({taille}px)')
+    favicon(tracé)
     print('Icônes régénérées.')
 
 

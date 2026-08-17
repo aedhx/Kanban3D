@@ -17,11 +17,12 @@ import { sortableKeyboardCoordinates } from '@dnd-kit/sortable'
 import { STATUSES, type Status } from '@/db/schema'
 import { columnCards, pendingCard, resolveDrop, type BoardCard } from '@/lib/board'
 import { positionBetween } from '@/lib/cards'
-import { PEOPLE } from '@/lib/people'
+import { PEOPLE, type Person } from '@/lib/people'
 import { useIdentity } from '@/lib/useIdentity'
 import { AddUrlBar } from './AddUrlBar'
 import { CardPanel } from './CardPanel'
 import { CardPreview } from './CardTile'
+import { Greeting } from './Greeting'
 import { IconIdentity, IconOffline } from './icons'
 import { Column } from './Column'
 
@@ -41,6 +42,12 @@ export function Board({
   const [activeId, setActiveId] = useState<string | null>(null)
   const [offline, setOffline] = useState(false)
   const [addError, setAddError] = useState<string | null>(null)
+  /*
+   * Prénom qui vient d'être choisi, le temps du mot d'accueil. Uniquement après
+   * le choix initial : le bouton de l'en-tête change d'utilisateur en un clic, et
+   * un plein écran à chaque bascule deviendrait vite pénible.
+   */
+  const [greeted, setGreeted] = useState<Person | null>(null)
 
   // Le rafraîchissement périodique ne doit jamais écraser une modification en
   // cours : on le met en pause pendant un glisser ou un appel réseau.
@@ -256,6 +263,10 @@ export function Board({
     ).catch(() => {})
   }
 
+  if (greeted) {
+    return <Greeting person={greeted} onDone={() => setGreeted(null)} />
+  }
+
   const editing = cards.find((card) => card.id === editingId) ?? null
   const activeCard = cards.find((card) => card.id === activeId) ?? null
 
@@ -273,7 +284,10 @@ export function Board({
               <button
                 key={person}
                 type="button"
-                onClick={() => choose(person)}
+                onClick={() => {
+                  choose(person)
+                  setGreeted(person)
+                }}
                 className="rounded-lg border border-line bg-surface px-4 py-3 font-medium transition-colors hover:border-accent hover:text-accent"
               >
                 {person}

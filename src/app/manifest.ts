@@ -4,7 +4,8 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     name: 'Kanban3D — impressions 3D',
     short_name: 'Kanban3D',
-    description: 'Le tableau des impressions 3D à faire, partagé à deux.',
+    // Même formulation que la description de partage, dans src/app/layout.tsx.
+    description: 'Collez un lien, la carte se crée. Le tableau d’impressions 3D partagé à deux.',
     start_url: '/',
     display: 'standalone',
     orientation: 'portrait',
