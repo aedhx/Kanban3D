@@ -35,8 +35,13 @@ devient simplement le titre, pour une demande sans modèle en ligne.
 | **Thingiverse** | ✔ &nbsp;*(jeton requis en ligne, voir plus bas)* | — |
 | **Cults3D** | ✔ | — |
 | **MyMiniFactory** | titre et image | — |
-| Creality Cloud, Pinshape, Fab365 | selon la page | — |
+| Creality Cloud, Pinshape, Fab365 | badge, et nom déduit de l'adresse | — |
 | n'importe quelle autre adresse | ce que la page veut bien dire | — |
+
+Mesuré sur Fab365 : ses fiches annoncent « FAB365 » comme titre, donc c'est
+l'adresse qui nomme la carte — « Star wars x wing ». Creality Cloud et Pinshape
+n'exposent aucune fiche modèle atteignable autrement qu'en JavaScript : elles sont
+reconnues pour le badge, sans promesse sur l'image.
 
 Le suffixe de l'adresse n'a aucune importance : `/files`, `/comments`, un
 `#fragment` — seul l'identifiant compte. Et si une plateforme ne répond pas, la
