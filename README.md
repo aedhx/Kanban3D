@@ -31,8 +31,8 @@ devient simplement le titre, pour une demande sans modèle en ligne.
 | --- | :---: | :---: |
 | **Printables** | ✔ | ✔ |
 | **MakerWorld** | ✔ | ✔ |
-| **Thangs** (liens `than.gs` compris) | ✔ &nbsp;*(bloqué depuis l'hébergeur, voir plus bas)* | — |
-| **Thingiverse** | ✔ &nbsp;*(jeton requis en ligne, voir plus bas)* | — |
+| **Thangs** (liens `than.gs` compris) | ✔ &nbsp;*([bloqué depuis l'hébergeur](#les-plateformes-qui-refusent-les-serveurs))* | — |
+| **Thingiverse** | ✔ &nbsp;*([jeton requis en ligne](#les-plateformes-qui-refusent-les-serveurs))* | — |
 | **Cults3D** | ✔ | — |
 | **MyMiniFactory** | titre et image | — |
 | Creality Cloud, Pinshape, Fab365 | badge, et nom déduit de l'adresse | — |
@@ -218,31 +218,34 @@ l'extension d'avant avril 2026. L'ordre de lecture est dans
 
 ### 3. Poser les variables d'environnement
 
-Dans **Project configuration → Environment variables** :
+Dans **Project configuration → Environment variables**. Trois obligatoires :
 
 | Variable | Valeur |
 | --- | --- |
 | `DATABASE_URL` | la chaîne de connexion Neon de l'étape 2 (inutile avec Netlify Database) |
 | `APP_PIN` | le code que vous partagez avec votre frère, par ex. `4271` |
 | `APP_SECRET` | une chaîne aléatoire, obtenue avec `openssl rand -hex 32` |
-| `FILAMENT_PRICE_PER_KG` | facultatif : prix du kilo de filament, pour chiffrer les impressions |
-
-Ces variables ne sont lues qu'au déploiement : après les avoir posées ou
-modifiées, relancez un déploiement pour qu'elles prennent effet.
 
 `APP_SECRET` sert à signer le cookie de session. Changer `APP_PIN` déconnecte
 automatiquement tout le monde.
 
-Ajoutez-y aussi, si vous voulez les notifications, les variables d'un des trois
-canaux décrits dans `.env.example` — le plus simple étant `TELEGRAM_BOT_TOKEN` +
-`TELEGRAM_CHAT_ID`. Sans elles, l'application marche mais n'envoie rien.
+Et quatre facultatives, chacune allumant une fonctionnalité :
 
-Et `THINGIVERSE_TOKEN`, si vous collez des liens Thingiverse : c'est la seule
-plateforme dont les pages sont bloquées lorsqu'elles sont demandées depuis un
-hébergeur (voir « Le cas Thingiverse » plus bas).
+| Variable | Ce qu'elle apporte | Sans elle |
+| --- | --- | --- |
+| `FILAMENT_PRICE_PER_KG` | le coût estimé sur les cartes et les totaux de colonne | aucun prix n'est affiché, nulle part |
+| `THINGIVERSE_TOKEN` | les cartes Thingiverse remontent titre, image et auteur | elles arrivent nommées « Thingiverse 5564110 » |
+| `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID` | les notifications sur vos téléphones | l'application marche, mais n'envoie rien |
+| `NTFY_TOPIC` ou `NOTIFY_WEBHOOK_URL` | les mêmes, par un autre canal | idem |
 
-Puis **Deploys → Trigger deploy**. À la première visite, le site demande le code,
-puis qui vous êtes.
+Le détail de chacune, avec le mode opératoire, est dans `.env.example`.
+
+⚠️ **Ces variables ne sont lues qu'au déploiement.** Les poser ne suffit pas : il
+faut ensuite **Deploys → Trigger deploy**, sans quoi l'application continue de
+tourner sans les voir — un prix qui n'apparaît pas ou un jeton qui semble ignoré
+est presque toujours cela.
+
+À la première visite, le site demande le code, puis qui vous êtes.
 
 ### Si quelque chose ne va pas
 
@@ -255,12 +258,14 @@ place :
 | Le code est refusé avec « L'application n'est pas configurée » | `APP_PIN` ou `APP_SECRET` manque |
 | Le journal de build affiche « aucune chaîne de connexion » | `DATABASE_URL` manque, ou la base Netlify n'est pas activée |
 | Le tableau affiche un écran de configuration | il nomme lui-même la cause et les gestes à faire |
+| Une variable posée ne change rien | aucun déploiement n'a eu lieu depuis : **Deploys → Trigger deploy** |
+| Les cartes Thingiverse ou Thangs arrivent sans nom propre | [ces plateformes bloquent les hébergeurs](#les-plateformes-qui-refusent-les-serveurs) |
 
 ## En local
 
 ```bash
 npm install
-cp .env.example .env.local     # puis remplir les trois variables
+cp .env.example .env.local     # puis remplir DATABASE_URL, APP_PIN, APP_SECRET
 npm run db:migrate             # crée les tables
 npm run dev                    # http://localhost:3000
 ```
@@ -300,6 +305,46 @@ que l'application produit réellement.
 Le haut de ce fichier dit ce que fait l'application ; cette partie dit **pourquoi
 elle est faite ainsi**, décision par décision, avec les pièges rencontrés en
 route. C'est la partie à lire avant de modifier quelque chose.
+
+### Où se trouve quoi
+
+```
+src/
+  app/
+    page.tsx                     le tableau, rendu côté serveur avec ses cartes
+    login/page.tsx               l'écran du code
+    api/cards/route.ts           GET la liste · POST une carte (résout le lien)
+    api/cards/[id]/route.ts      PATCH modifier ou déplacer · DELETE
+    api/cards/[id]/comments/     le fil de discussion
+    api/cards/[id]/photo/        la photo du résultat (octets, hors du tableau)
+    api/auth/route.ts            POST le code -> cookie signé
+  components/
+    Board.tsx                    l'état du tableau, le rafraîchissement, dnd-kit
+    Column.tsx  CardTile.tsx     une colonne, une carte
+    CardPanel.tsx                le détail, en panneau latéral
+    AddUrlBar.tsx                le champ de collage
+    CommentThread.tsx            la discussion
+    PhotoField.tsx               prise et envoi de la photo
+    Thumbnail.tsx                vignette, CDN, et repli nommé
+    LoginForm.tsx                la saisie du code
+    SetupNeeded.tsx              l'écran de diagnostic d'une base absente
+    icons.ts                     tous les pictogrammes, sous des noms d'usage
+  lib/
+    metadata.ts                  les adaptateurs de plateformes — le cœur technique
+    printInfo.ts                 mise en forme des durées, poids, prix, totaux
+    photo.ts                     redimensionnement dans le navigateur
+    board.ts  cards.ts           positions, déplacements, nettoyage des saisies
+    auth.ts                      cookie HMAC
+    notify.ts                    Telegram, ntfy, webhook
+    dates.ts  settings.ts        échéances, archivage, réglages d'environnement
+    images.ts  databaseUrl.ts    Image CDN de Netlify, noms de variables acceptés
+    people.ts  useIdentity.ts    les deux prénoms, et lequel est cet appareil
+  db/
+    schema.ts  queries.ts        les trois tables, et le décompte des messages
+drizzle/                         les migrations, versionnées
+scripts/                         migration, test des plateformes, captures
+docs/images/                     les captures de ce fichier
+```
 
 ### Ajouter une demande
 
@@ -473,6 +518,13 @@ Le choix « Antoine / Alexandre » est indépendant : une simple valeur en
 `localStorage`, pour savoir qui a demandé quoi. Pour changer les prénoms, éditer
 `PEOPLE` dans `src/lib/people.ts`.
 
+**Ce que cette protection ne fait pas**, pour que ce soit dit : il n'y a aucune
+limitation du nombre d'essais. Un code à cinq chiffres sur une adresse publique se
+teste donc entièrement en quelques heures par un script. C'est un choix assumé — le
+tableau ne contient que des liens vers des modèles publics et des remarques du
+genre « plutôt en noir » — mais si un jour son contenu devient sensible, c'est la
+première chose à revoir. Un code plus long élève la barre à peu de frais.
+
 ### Ordre des cartes
 
 `position` est un flottant. Insérer une carte entre deux autres prend la moyenne
@@ -552,10 +604,46 @@ qu'un site en ligne dont le schéma ne correspond pas au code.
 Après avoir modifié `src/db/schema.ts` : `npm run db:generate`, puis commiter le
 fichier SQL produit. Le déploiement s'occupe du reste.
 
-La première migration porte des gardes `IF NOT EXISTS` ajoutées à la main, que
+Plusieurs migrations portent des gardes `IF NOT EXISTS` ajoutées à la main, que
 drizzle-kit ne produit pas : une base créée auparavant avec `db:push` possède déjà
 les tables sans posséder le journal, et le premier déploiement échouerait sans
-elles.
+elles. Les migrations suivantes gardent l'habitude — un `ADD COLUMN` ou un
+`CREATE TABLE` idempotent ne coûte rien, et évite qu'un schéma modifié à la main un
+soir de dépannage ne bloque le déploiement du lendemain.
+
+L'état actuel, cinq migrations :
+
+| | Contenu |
+| --- | --- |
+| `0000` | `cards` et `comments`, avec `due_date` et `done_at` |
+| `0001` | `auth_attempts` — la limitation du nombre d'essais |
+| `0002` | suppression de `auth_attempts` : le bridage a été retiré |
+| `0003` | durée, filament, matière, nombre de pièces et de fichiers |
+| `0004` | `card_photos` et `cards.photo_at` |
+
+La 0001 est conservée plutôt qu'effacée : une base déjà déployée a joué cette
+migration, et retirer un fichier du journal ferait diverger le compte. On n'efface
+pas l'histoire, on ajoute la suite.
+
+### Ce qui est vérifié, et comment
+
+Il n'y a pas de suite de tests unitaires dans le dépôt : à cette taille, elle
+testerait surtout la mise en forme de chaînes. Ce qui est vérifié l'est de bout en
+bout, sur un Postgres local et un vrai navigateur, avec des captures à l'appui.
+
+| Ce qui est couvert | Comment |
+| --- | --- |
+| Les plateformes répondent comme prévu | `npm run test:platforms`, qui les interroge réellement |
+| Créer, modifier, déplacer, supprimer une carte | parcours Playwright, avec rechargement pour vérifier la persistance |
+| Réordonner dans une colonne | positions relues après coup, et vérifiées distinctes |
+| Discussion, échéances, archivage | idem, y compris le compteur de messages |
+| Coût d'impression et prix | valeurs saisies, effacées, bornées, et leur mise en forme |
+| Photo | dépôt, remplacement, cache, format refusé, suppression en cascade |
+| Contraste AA dans les deux thèmes | mesure du rapport réel sur les éléments rendus |
+| Mobile | 375 / 393 / 430 px : débordement, cibles tactiles, taille des champs |
+
+Les scripts de captures (`scripts/screenshots.mjs`) servent aussi de vérification
+visuelle : ils passent par l'interface, pas par la base.
 
 ### Le décompte des messages, et un piège Drizzle
 
@@ -566,3 +654,24 @@ nom de sa table **que si la requête comporte une jointure**. Sans jointure,
 `… where "card_id" = "id"`, et dans la sous-requête `"id"` désigne
 `comments.id` : le décompte vaut zéro partout, sans la moindre erreur SQL. Le
 commentaire dans le fichier le rappelle.
+
+---
+
+## Ce que l'application ne fait pas
+
+Volontairement, et il vaut mieux que ce soit écrit noir sur blanc — la moitié du
+travail de conception a consisté à dire non :
+
+- **pas de comptes** : un code partagé, et deux prénoms qui ne sont que des
+  étiquettes ;
+- **pas de collections, pas de tableaux multiples, pas d'étiquettes** : trois
+  colonnes, une liste, c'est tout ;
+- **pas d'export**, pas de statistiques, pas d'historique détaillé des
+  mouvements : on garde « demandé par » et « déplacé par », rien de plus ;
+- **pas de téléversement de fichiers STL** : le tableau renvoie vers la
+  plateforme, il ne l'héberge pas ;
+- **pas de recherche ni de filtre** : utile à deux cents cartes, encombrant à
+  vingt. À ajouter le jour où ça manquera vraiment.
+
+Chacun de ces refus est un écran en moins à comprendre. Le cahier des charges
+initial disait « sans collection, sans rien » — c'est resté la règle.
