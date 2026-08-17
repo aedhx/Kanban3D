@@ -5,6 +5,7 @@ import { STATUSES, STATUS_LABELS, type Status } from '@/db/schema'
 import type { BoardCard } from '@/lib/board'
 import { formatDate, formatDue } from '@/lib/dates'
 import { CommentThread } from './CommentThread'
+import { IconClose, IconDelete, IconExternalLink } from './icons'
 import { Thumbnail } from './Thumbnail'
 
 type Props = {
@@ -93,9 +94,10 @@ export function CardModal({
                 href={card.url}
                 target="_blank"
                 rel="noreferrer noopener"
-                className="mt-1 inline-block truncate text-accent underline underline-offset-2"
+                className="mt-1 inline-flex items-center gap-1 truncate text-accent underline underline-offset-2"
               >
-                Ouvrir sur {card.source ?? 'la plateforme'} ↗
+                Ouvrir sur {card.source ?? 'la plateforme'}
+                <IconExternalLink size={12} aria-hidden />
               </a>
             )}
           </div>
@@ -103,9 +105,9 @@ export function CardModal({
             type="button"
             onClick={onClose}
             aria-label="Fermer"
-            className="-mt-1 shrink-0 rounded p-1 text-xl leading-none text-muted hover:text-ink"
+            className="-mt-1 shrink-0 rounded p-1 text-muted hover:text-ink"
           >
-            ×
+            <IconClose size={18} aria-hidden />
           </button>
         </div>
 
@@ -222,8 +224,10 @@ export function CardModal({
               <button
                 type="button"
                 onClick={() => setConfirmingDelete(true)}
-                className="rounded-lg border border-line px-4 py-2 text-sm text-muted hover:border-red-500 hover:text-red-500"
+                aria-label="Supprimer la demande"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-line px-4 py-2 text-sm text-muted hover:border-red-500 hover:text-red-500"
               >
+                <IconDelete size={15} aria-hidden />
                 Supprimer
               </button>
             )}

@@ -5,6 +5,7 @@ import { CSS } from '@dnd-kit/utilities'
 import { STATUSES, STATUS_LABELS, type Status } from '@/db/schema'
 import { adjacentStatus, type BoardCard } from '@/lib/board'
 import { dueState, formatDue, type DueState } from '@/lib/dates'
+import { IconComments, IconDueDate, IconMovedBy, IconNext, IconOverdue, IconPrevious } from './icons'
 import { Thumbnail } from './Thumbnail'
 
 /** Petite pastille colorée devinée à partir du nom de couleur saisi. */
@@ -81,15 +82,23 @@ function CardContent({ card }: { card: BoardCard }) {
           {card.source && <span className="truncate">{card.source}</span>}
 
           {due && (
-            <span className={`rounded px-1.5 py-0.5 ${DUE_STYLES[due]}`}>
-              {due === 'overdue' ? '⚠ ' : ''}
+            <span className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 ${DUE_STYLES[due]}`}>
+              {due === 'overdue' ? (
+                <IconOverdue size={12} weight="fill" aria-hidden />
+              ) : (
+                <IconDueDate size={12} aria-hidden />
+              )}
               {formatDue(card.dueDate!)}
             </span>
           )}
 
           {card.commentCount > 0 && (
-            <span className="inline-flex items-center gap-0.5" title={`${card.commentCount} message(s)`}>
-              💬 {card.commentCount}
+            <span
+              className="inline-flex items-center gap-1"
+              title={`${card.commentCount} message${card.commentCount > 1 ? 's' : ''}`}
+            >
+              <IconComments size={13} aria-hidden />
+              {card.commentCount}
             </span>
           )}
         </div>
@@ -119,9 +128,14 @@ function CardFooter({
 
   return (
     <div className="flex items-center justify-between gap-2 border-t border-line px-3 py-1.5">
-      <span className="truncate text-[11px] text-muted">
+      <span className="inline-flex min-w-0 items-center gap-1 truncate text-[11px] text-muted">
         {card.requestedBy}
-        {card.lastMovedBy && card.lastMovedBy !== card.requestedBy && ` · ↦ ${card.lastMovedBy}`}
+        {card.lastMovedBy && card.lastMovedBy !== card.requestedBy && (
+          <>
+            <IconMovedBy size={11} aria-hidden />
+            {card.lastMovedBy}
+          </>
+        )}
       </span>
 
       <div className="flex shrink-0 gap-1">
@@ -130,14 +144,14 @@ function CardFooter({
           disabled={!previous || !interactive}
           onClick={() => previous && onMove(card, previous)}
         >
-          ‹
+          <IconPrevious size={14} aria-hidden />
         </MoveButton>
         <MoveButton
           label={next ? `Déplacer vers « ${STATUS_LABELS[next]} »` : ''}
           disabled={!next || !interactive}
           onClick={() => next && onMove(card, next)}
         >
-          ›
+          <IconNext size={14} aria-hidden />
         </MoveButton>
       </div>
     </div>
@@ -217,7 +231,7 @@ function MoveButton({
       title={label}
       disabled={disabled}
       onClick={onClick}
-      className="flex h-6 w-6 items-center justify-center rounded border border-line text-sm leading-none text-muted transition-colors hover:border-accent hover:text-accent disabled:pointer-events-none disabled:opacity-25"
+      className="flex h-6 w-6 items-center justify-center rounded border border-line text-muted transition-colors hover:border-accent hover:text-accent disabled:pointer-events-none disabled:opacity-25"
     >
       {children}
     </button>

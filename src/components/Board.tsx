@@ -22,6 +22,7 @@ import { useIdentity } from '@/lib/useIdentity'
 import { AddCardForm, type NewCardInput } from './AddCardForm'
 import { CardModal } from './CardModal'
 import { CardPreview } from './CardTile'
+import { IconIdentity, IconOffline } from './icons'
 import { Column } from './Column'
 
 const REFRESH_INTERVAL_MS = 10_000
@@ -237,7 +238,12 @@ export function Board({ initialCards }: { initialCards: BoardCard[] }) {
       <header className="flex items-center justify-between gap-3">
         <h1 className="text-lg font-semibold tracking-tight">Kanban3D</h1>
         <div className="flex items-center gap-2 text-xs text-muted">
-          {offline && <span className="text-amber-600 dark:text-amber-400">hors ligne</span>}
+          {offline && (
+            <span className="inline-flex items-center gap-1 text-amber-700 dark:text-amber-400">
+              <IconOffline size={14} aria-hidden />
+              hors ligne
+            </span>
+          )}
           <button
             type="button"
             onClick={() => {
@@ -245,8 +251,9 @@ export function Board({ initialCards }: { initialCards: BoardCard[] }) {
               choose(next)
             }}
             title="Changer d’utilisateur"
-            className="rounded-full border border-line px-3 py-1 transition-colors hover:border-accent hover:text-accent"
+            className="inline-flex items-center gap-1.5 rounded-full border border-line px-3 py-1 transition-colors hover:border-accent hover:text-accent"
           >
+            <IconIdentity size={14} aria-hidden />
             {identity ?? '—'}
           </button>
         </div>

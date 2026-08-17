@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Comment } from '@/db/schema'
 import { timeAgo } from '@/lib/dates'
+import { IconSend } from './icons'
 
 /** Un message tel que le reçoit le navigateur : date sérialisée en chaîne. */
 export type ThreadComment = Omit<Comment, 'createdAt'> & { createdAt: string }
@@ -122,8 +123,10 @@ export function CommentThread({
         <button
           type="submit"
           disabled={sending || !draft.trim()}
-          className="shrink-0 rounded-lg border border-line px-3 py-2 text-sm text-muted transition-colors hover:border-accent hover:text-accent disabled:opacity-40"
+          aria-label="Envoyer le message"
+          className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-line px-3 py-2 text-sm text-muted transition-colors hover:border-accent hover:text-accent disabled:opacity-40"
         >
+          <IconSend size={15} aria-hidden />
           {sending ? '…' : 'Envoyer'}
         </button>
       </form>

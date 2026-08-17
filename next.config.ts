@@ -1,6 +1,12 @@
 import type { NextConfig } from 'next'
 
 const nextConfig: NextConfig = {
+  experimental: {
+    // Réécrit `import { X } from '@phosphor-icons/react'` vers le module de
+    // l'icône seule : sans cela, le barrel de la bibliothèque (plusieurs
+    // milliers d'icônes) ralentit fortement la compilation en développement.
+    optimizePackageImports: ['@phosphor-icons/react'],
+  },
   env: {
     // Netlify définit NETLIFY=true pendant la construction. On s'en sert pour
     // n'activer l'Image CDN (/.netlify/images) que là où il existe réellement ;

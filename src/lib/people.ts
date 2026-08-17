@@ -5,7 +5,7 @@
  * appareil et conservée dans le navigateur, pour savoir qui a demandé quoi.
  * Pour changer les prénoms, il suffit de modifier cette liste.
  */
-export const PEOPLE = ['Aedh', 'Alexandre'] as const
+export const PEOPLE = ['Antoine', 'Alexandre'] as const
 
 export type Person = (typeof PEOPLE)[number]
 

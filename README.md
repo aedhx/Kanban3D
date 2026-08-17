@@ -127,7 +127,7 @@ Le contrôle se fait explicitement dans la page et dans chaque route d'API, sans
 middleware Edge : tout reste en runtime Node, ce qui évite les surprises de
 configuration côté Netlify Edge Functions.
 
-Le choix « Aedh / Alexandre » est indépendant : une simple valeur en
+Le choix « Antoine / Alexandre » est indépendant : une simple valeur en
 `localStorage`, pour savoir qui a demandé quoi. Pour changer les prénoms, éditer
 `PEOPLE` dans `src/lib/people.ts`.
 
@@ -176,6 +176,23 @@ jours passent derrière un lien « voir l'historique » ; c'est `done_at` qui en
 décide, horodaté à l'entrée en « Fait » et effacé si la carte en ressort.
 `updated_at` ne pourrait pas jouer ce rôle, la moindre correction le remettant à
 zéro.
+
+### Icônes
+
+[Phosphor Icons](https://phosphoricons.com) (licence MIT). Les pictogrammes
+retenus sont rassemblés dans `src/components/icons.ts` sous des noms d'usage
+(`IconOverdue` plutôt que `Warning`) : un seul endroit à modifier pour en changer
+un. `next.config.ts` réécrit ces imports vers les modules individuels, sans quoi
+le barrel de la bibliothèque ralentirait beaucoup la compilation.
+
+Les icônes de l'application elle-même viennent du même jeu — le cube Phosphor
+sur fond orange — et se régénèrent avec `python3 scripts/generate-icons.py`
+(voir l'en-tête du script pour les deux dépendances Python). Les PNG sont
+versionnés : ce script ne tourne ni au build ni au déploiement.
+
+Les emojis subsistent dans le **texte des notifications** (`🖨️`, `📦`, `💬`) :
+ce sont des messages Telegram ou ntfy en texte brut, où une icône vectorielle
+n'aurait pas de sens.
 
 ### Le décompte des messages, et un piège Drizzle
 

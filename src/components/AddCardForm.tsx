@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import type { ModelMetadata } from '@/lib/metadata'
+import { IconAdd } from './icons'
 import { Thumbnail } from './Thumbnail'
 
 export type NewCardInput = {
@@ -121,9 +122,10 @@ export function AddCardForm({ onCreate }: { onCreate: (input: NewCardInput) => P
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="w-full rounded-xl border border-dashed border-line bg-surface/60 px-4 py-3 text-sm font-medium text-muted transition-colors hover:border-accent hover:text-accent"
+        className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-line bg-surface/60 px-4 py-3 text-sm font-medium text-muted transition-colors hover:border-accent hover:text-accent"
       >
-        + Demander une impression
+        <IconAdd size={16} aria-hidden />
+        Demander une impression
       </button>
     )
   }
