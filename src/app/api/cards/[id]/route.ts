@@ -1,0 +1,110 @@
+import { NextResponse } from 'next/server'
+import { eq } from 'drizzle-orm'
+import { getDb } from '@/db'
+import { getCardWithCount } from '@/db/queries'
+import { STATUS_LABELS, cards } from '@/db/schema'
+import { isAuthenticated } from '@/lib/auth'
+import { isStatus, normalizeDate, normalizeQuantity, normalizeText } from '@/lib/cards'
+import { notify } from '@/lib/notify'
+
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
+
+type Params = { params: Promise<{ id: string }> }
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+export async function PATCH(request: Request, { params }: Params) {
+  if (!(await isAuthenticated())) {
+    return NextResponse.json({ error: 'Non autorisé.' }, { status: 401 })
+  }
+
+  const { id } = await params
+  if (!UUID_RE.test(id)) {
+    return NextResponse.json({ error: 'Carte introuvable.' }, { status: 404 })
+  }
+
+  let body: Record<string, unknown>
+  try {
+    body = (await request.json()) as Record<string, unknown>
+  } catch {
+    return NextResponse.json({ error: 'Requête invalide.' }, { status: 400 })
+  }
+
+  const db = getDb()
+  const [existing] = await db.select().from(cards).where(eq(cards.id, id))
+  if (!existing) {
+    return NextResponse.json({ error: 'Carte introuvable.' }, { status: 404 })
+  }
+
+  const updates: Partial<typeof cards.$inferInsert> = { updatedAt: new Date() }
+
+  // Déplacement. Le client calcule la position à partir des cartes voisines
+  // qu'il a déjà à l'écran (cf. positionBetween).
+  if (isStatus(body.status)) updates.status = body.status
+  if (typeof body.position === 'number' && Number.isFinite(body.position)) {
+    updates.position = body.position
+  }
+
+  // On ne note « déplacé par » que si la carte change réellement de colonne :
+  // réordonner à l'intérieur d'une colonne n'est pas un événement à afficher.
+  const changedColumn = Boolean(updates.status && updates.status !== existing.status)
+  if (changedColumn) {
+    updates.lastMovedBy = normalizeText(body.movedBy, 60) ?? existing.lastMovedBy
+    // Horodate l'entrée en « Fait », et l'efface si la carte en ressort : c'est
+    // cette date qui décide de l'archivage.
+    updates.doneAt = updates.status === 'done' ? new Date() : null
+  }
+
+  // Édition des champs. `in` permet de distinguer « champ absent » (on ne
+  // touche pas) de « champ vidé » (on efface).
+  if ('title' in body) {
+    const title = normalizeText(body.title, 300)
+    if (!title) {
+      return NextResponse.json({ error: 'Le titre est obligatoire.' }, { status: 400 })
+    }
+    updates.title = title
+  }
+  if ('url' in body) updates.url = normalizeText(body.url, 1000)
+  if ('imageUrl' in body) updates.imageUrl = normalizeText(body.imageUrl, 1000)
+  if ('author' in body) updates.author = normalizeText(body.author, 120)
+  if ('source' in body) updates.source = normalizeText(body.source, 60)
+  if ('color' in body) updates.color = normalizeText(body.color, 60)
+  if ('notes' in body) updates.notes = normalizeText(body.notes)
+  if ('quantity' in body) updates.quantity = normalizeQuantity(body.quantity)
+  if ('dueDate' in body) updates.dueDate = normalizeDate(body.dueDate)
+
+  const [updated] = await db.update(cards).set(updates).where(eq(cards.id, id)).returning()
+  const withCount = (await getCardWithCount(id)) ?? { ...updated, commentCount: 0 }
+
+  if (changedColumn) {
+    await notify({
+      kind: 'moved',
+      title: updated.title,
+      by: updated.lastMovedBy ?? updated.requestedBy,
+      from: STATUS_LABELS[existing.status],
+      to: STATUS_LABELS[updated.status],
+    })
+  }
+
+  return NextResponse.json({ card: withCount })
+}
+
+export async function DELETE(_request: Request, { params }: Params) {
+  if (!(await isAuthenticated())) {
+    return NextResponse.json({ error: 'Non autorisé.' }, { status: 401 })
+  }
+
+  const { id } = await params
+  if (!UUID_RE.test(id)) {
+    return NextResponse.json({ error: 'Carte introuvable.' }, { status: 404 })
+  }
+
+  const db = getDb()
+  const deleted = await db.delete(cards).where(eq(cards.id, id)).returning({ id: cards.id })
+  if (deleted.length === 0) {
+    return NextResponse.json({ error: 'Carte introuvable.' }, { status: 404 })
+  }
+
+  return NextResponse.json({ ok: true })
+}
