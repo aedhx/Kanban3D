@@ -164,6 +164,16 @@ Le contrôle se fait explicitement dans la page et dans chaque route d'API, sans
 middleware Edge : tout reste en runtime Node, ce qui évite les surprises de
 configuration côté Netlify Edge Functions.
 
+**Bridage des essais** — `AUTH_RATE_LIMIT=on` bloque une adresse après huit
+essais ratés en quinze minutes, et ajoute un délai à chaque échec. Désactivé par
+défaut : le chemin de connexion ne touche alors pas du tout à la base. La table
+nécessaire est créée par les migrations dans tous les cas, il n'y a donc qu'une
+variable à poser pour l'activer.
+
+À considérer si le code d'accès est court. Le site est public : avec quatre ou
+cinq chiffres et sans bridage, toutes les combinaisons s'épuisent en quelques
+heures. Un code de huit chiffres ou plus rend la question sans objet.
+
 Le choix « Antoine / Alexandre » est indépendant : une simple valeur en
 `localStorage`, pour savoir qui a demandé quoi. Pour changer les prénoms, éditer
 `PEOPLE` dans `src/lib/people.ts`.

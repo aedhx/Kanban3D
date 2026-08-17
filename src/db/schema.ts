@@ -80,6 +80,25 @@ export const comments = pgTable(
   (table) => [index('comments_card_id_idx').on(table.cardId)],
 )
 
+/**
+ * Tentatives de connexion échouées, pour brider les essais en force brute.
+ *
+ * Le code d'accès est court et le site est public : sans ce garde-fou, les
+ * combinaisons d'un code à cinq chiffres s'épuisent en quelques heures. La table
+ * vit en base plutôt qu'en mémoire parce que chaque invocation de fonction
+ * Netlify démarre dans une instance qui peut être neuve : un compteur local ne
+ * compterait rien.
+ */
+export const authAttempts = pgTable(
+  'auth_attempts',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    ip: text('ip').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index('auth_attempts_ip_created_idx').on(table.ip, table.createdAt)],
+)
+
 export const cardsRelations = relations(cards, ({ many }) => ({
   comments: many(comments),
 }))
