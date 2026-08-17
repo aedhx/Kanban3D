@@ -11,6 +11,7 @@
  * Aucune base de données requise.
  */
 import { fetchModelMetadata } from '../src/lib/metadata.ts'
+import { formatFilament, formatPrintTime } from '../src/lib/printInfo.ts'
 
 type Attente = {
   plateforme: string
@@ -103,6 +104,20 @@ for (const attente of ATTENTES) {
   if (attente.imageAttendue) {
     console.log(`    image   ${meta.imageUrl ? 'présente' : 'ABSENTE'}`)
   }
+  /*
+   * Le coût d'impression est purement indicatif : les plateformes ne le
+   * publient qu'au bon vouloir de l'auteur (durée, poids et pièces sur environ
+   * un tiers des modèles Printables ; la matière presque jamais). Un tiret
+   * n'est donc pas une panne — c'est la raison pour laquelle ces champs restent
+   * modifiables à la main.
+   */
+  console.log(
+    `    coût    durée ${formatPrintTime(meta.printMinutes ?? null) ?? '—'}` +
+      ` · poids ${formatFilament(meta.filamentGrams ?? null) ?? '—'}` +
+      ` · matière ${meta.material ?? '—'}` +
+      ` · pièces ${meta.pieceCount ?? '—'}` +
+      ` · fichiers ${meta.fileCount ?? '—'}`,
+  )
   if (!complet && attente.filtrageFrequent) {
     console.log(
       `    [2mCe site filtre parfois selon l'adresse IP. L'application se rabat`,

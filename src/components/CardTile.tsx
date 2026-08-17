@@ -5,13 +5,16 @@ import { CSS } from '@dnd-kit/utilities'
 import { STATUSES, STATUS_LABELS, type Status } from '@/db/schema'
 import { adjacentStatus, type BoardCard } from '@/lib/board'
 import { dueState, formatDue, type DueState } from '@/lib/dates'
+import { formatPieces, formatPrintTime, printCostParts } from '@/lib/printInfo'
 import {
   IconComments,
   IconDueDate,
   IconMovedBy,
   IconNext,
   IconOverdue,
+  IconPieces,
   IconPrevious,
+  IconPrintTime,
 } from './icons'
 import { Thumbnail } from './Thumbnail'
 
@@ -59,6 +62,11 @@ function CardContent({ card }: { card: BoardCard }) {
   const swatch = swatchFor(card.color)
   // Une échéance sur une carte déjà terminée n'a plus rien à signaler.
   const due = card.dueDate && card.status !== 'done' ? dueState(card.dueDate) : null
+  // Ce que l'impression va coûter, et s'il y a un assemblage à prévoir.
+  // L'horloge n'annonce que la durée : sans durée, « 52 g » se passe d'icône.
+  const cost = printCostParts(card).join(' · ')
+  const timed = formatPrintTime(card.printMinutes) !== null
+  const pieces = formatPieces(card.pieceCount)
 
   return (
     <div className="flex gap-3 p-3">
@@ -114,6 +122,26 @@ function CardContent({ card }: { card: BoardCard }) {
             </span>
           )}
         </div>
+
+        {(cost || pieces) && (
+          <div
+            className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted"
+            data-testid="print-info"
+          >
+            {cost && (
+              <span className="inline-flex items-center gap-1">
+                {timed && <IconPrintTime size={13} aria-hidden />}
+                {cost}
+              </span>
+            )}
+            {pieces && (
+              <span className="inline-flex items-center gap-1">
+                <IconPieces size={13} aria-hidden />
+                {pieces}
+              </span>
+            )}
+          </div>
+        )}
 
         {card.notes && <p className="mt-1.5 line-clamp-2 text-xs text-muted">{card.notes}</p>}
       </div>

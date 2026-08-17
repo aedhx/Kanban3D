@@ -4,9 +4,28 @@ import { useEffect, useRef, useState } from 'react'
 import { STATUSES, STATUS_LABELS, type Status } from '@/db/schema'
 import type { BoardCard } from '@/lib/board'
 import { formatDate, formatDue } from '@/lib/dates'
+import { printCostParts } from '@/lib/printInfo'
 import { CommentThread } from './CommentThread'
 import { IconClose, IconDelete, IconExternalLink } from './icons'
 import { Thumbnail } from './Thumbnail'
+
+/**
+ * Champ des données d'impression : plus étroit que les autres, mais aussi haut
+ * — 40 px de cible tactile, comme le reste du panneau.
+ */
+const FIELD =
+  'w-full rounded-lg border border-line bg-canvas px-2 py-2 text-sm outline-none focus:border-accent'
+
+/** Valeur d'un `<input type="number">` : vide veut dire « pas renseigné ». */
+function numberField(value: number | null): string {
+  return value === null ? '' : String(value)
+}
+
+/** Lecture inverse : la chaîne du champ redevient un nombre, ou `null`. */
+function numberValue(value: string): number | null {
+  const n = Number.parseInt(value, 10)
+  return Number.isFinite(n) && n > 0 ? n : null
+}
 
 type Props = {
   card: BoardCard
@@ -41,22 +60,42 @@ export function CardPanel({
   const [color, setColor] = useState(card.color ?? '')
   const [notes, setNotes] = useState(card.notes ?? '')
   const [dueDate, setDueDate] = useState(card.dueDate ?? '')
+  // Champs d'impression en chaînes, et non en nombres : c'est le seul moyen de
+  // laisser un champ vide (« pas renseigné ») sans le confondre avec zéro.
+  const [printMinutes, setPrintMinutes] = useState(numberField(card.printMinutes))
+  const [filamentGrams, setFilamentGrams] = useState(numberField(card.filamentGrams))
+  const [material, setMaterial] = useState(card.material ?? '')
+  const [pieceCount, setPieceCount] = useState(numberField(card.pieceCount))
+  const [fileCount, setFileCount] = useState(numberField(card.fileCount))
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [busy, setBusy] = useState(false)
   const [saved, setSaved] = useState(false)
   const panelRef = useRef<HTMLElement>(null)
 
-  // Le panneau reste monté quand on passe d'une carte à l'autre : il faut donc
-  // recharger les champs à chaque changement de carte.
+  /*
+   * Le panneau reste monté quand on passe d'une carte à l'autre : il faut donc
+   * recharger les champs à chaque changement de carte.
+   *
+   * Uniquement sur `card.id`, et surtout pas sur la valeur des champs : le
+   * tableau se rafraîchit toutes les 10 s, et réagir à chaque valeur ferait
+   * écraser une saisie en cours dès qu'une écriture revient du serveur —
+   * l'enregistrement effaçait ainsi son propre accusé « Enregistré ».
+   */
   useEffect(() => {
     setTitle(card.title)
     setQuantity(card.quantity)
     setColor(card.color ?? '')
     setNotes(card.notes ?? '')
     setDueDate(card.dueDate ?? '')
+    setPrintMinutes(numberField(card.printMinutes))
+    setFilamentGrams(numberField(card.filamentGrams))
+    setMaterial(card.material ?? '')
+    setPieceCount(numberField(card.pieceCount))
+    setFileCount(numberField(card.fileCount))
     setConfirmingDelete(false)
     setSaved(false)
-  }, [card.id, card.title, card.quantity, card.color, card.notes, card.dueDate])
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- volontaire, cf. ci-dessus
+  }, [card.id])
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
@@ -65,6 +104,16 @@ export function CardPanel({
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose])
+
+  // Ce que la carte affichera, recalculé pendant la saisie : on voit « 214 min »
+  // devenir « 3 h 34 » avant même d'enregistrer.
+  const summary = printCostParts({
+    printMinutes: numberValue(printMinutes),
+    filamentGrams: numberValue(filamentGrams),
+    material: material.trim() || null,
+    fileCount: null,
+    pieceCount: null,
+  }).join(' · ')
 
   async function save(event: React.FormEvent) {
     event.preventDefault()
@@ -80,6 +129,11 @@ export function CardPanel({
         color: color.trim() || null,
         notes: notes.trim() || null,
         dueDate: dueDate || null,
+        printMinutes: printMinutes || null,
+        filamentGrams: filamentGrams || null,
+        material: material.trim() || null,
+        pieceCount: pieceCount || null,
+        fileCount: fileCount || null,
       })
       // On ne referme pas : le panneau doit pouvoir rester ouvert à côté du
       // tableau. Un accusé discret suffit.
@@ -207,6 +261,115 @@ export function CardPanel({
             className="w-full resize-y rounded-lg border border-line bg-canvas px-3 py-2 text-sm outline-none focus:border-accent"
           />
 
+          {/*
+            Coût d'impression. Rempli tout seul quand la plateforme le publie
+            (Printables, MakerWorld), à corriger à la main après un passage au
+            trancheur — c'est Alexandre qui a le dernier mot, il a l'imprimante.
+          */}
+          <fieldset className="mt-4 rounded-lg border border-line p-3">
+            <legend className="px-1 text-xs font-medium text-muted">Impression</legend>
+
+            <div className="flex gap-2">
+              <div className="w-24">
+                <label
+                  htmlFor="m-print-minutes"
+                  className="mb-1 block text-[11px] font-medium text-muted"
+                >
+                  Durée (min)
+                </label>
+                <input
+                  id="m-print-minutes"
+                  type="number"
+                  min={0}
+                  inputMode="numeric"
+                  value={printMinutes}
+                  onChange={(e) => setPrintMinutes(e.target.value)}
+                  placeholder="—"
+                  className={FIELD}
+                />
+              </div>
+              <div className="w-24">
+                <label
+                  htmlFor="m-filament-grams"
+                  className="mb-1 block text-[11px] font-medium text-muted"
+                >
+                  Filament (g)
+                </label>
+                <input
+                  id="m-filament-grams"
+                  type="number"
+                  min={0}
+                  inputMode="numeric"
+                  value={filamentGrams}
+                  onChange={(e) => setFilamentGrams(e.target.value)}
+                  placeholder="—"
+                  className={FIELD}
+                />
+              </div>
+              <div className="min-w-0 flex-1">
+                <label
+                  htmlFor="m-material"
+                  className="mb-1 block text-[11px] font-medium text-muted"
+                >
+                  Matière
+                </label>
+                <input
+                  id="m-material"
+                  list="matieres-courantes"
+                  value={material}
+                  onChange={(e) => setMaterial(e.target.value)}
+                  placeholder="PLA…"
+                  className={FIELD}
+                />
+              </div>
+            </div>
+
+            <div className="mt-2 flex gap-2">
+              <div className="w-24">
+                <label
+                  htmlFor="m-piece-count"
+                  className="mb-1 block text-[11px] font-medium text-muted"
+                >
+                  Pièces
+                </label>
+                <input
+                  id="m-piece-count"
+                  type="number"
+                  min={0}
+                  inputMode="numeric"
+                  value={pieceCount}
+                  onChange={(e) => setPieceCount(e.target.value)}
+                  placeholder="—"
+                  className={FIELD}
+                />
+              </div>
+              <div className="w-24">
+                <label
+                  htmlFor="m-file-count"
+                  className="mb-1 block text-[11px] font-medium text-muted"
+                >
+                  Fichiers
+                </label>
+                <input
+                  id="m-file-count"
+                  type="number"
+                  min={0}
+                  inputMode="numeric"
+                  value={fileCount}
+                  onChange={(e) => setFileCount(e.target.value)}
+                  placeholder="—"
+                  className={FIELD}
+                />
+              </div>
+            </div>
+
+            {summary && (
+              <p className="mt-2 text-xs text-muted" data-testid="print-summary">
+                {summary}
+              </p>
+            )}
+          </fieldset>
+
           <fieldset className="mt-4">
             <legend className="mb-1.5 text-xs font-medium text-muted">Colonne</legend>
             <div className="flex gap-1.5">
@@ -262,6 +425,21 @@ export function CardPanel({
             )}
           </div>
         </form>
+
+        {/* Suggestions des deux champs libres ci-dessus : on peut toujours taper
+            autre chose, la liste ne fait que raccourcir la saisie. */}
+        <datalist id="couleurs-courantes">
+          {['Noir', 'Blanc', 'Gris', 'Rouge', 'Orange', 'Jaune', 'Vert', 'Bleu', 'Violet'].map(
+            (name) => (
+              <option key={name} value={name} />
+            ),
+          )}
+        </datalist>
+        <datalist id="matieres-courantes">
+          {['PLA', 'PLA-CF', 'PETG', 'ABS', 'ASA', 'TPU', 'Résine'].map((name) => (
+            <option key={name} value={name} />
+          ))}
+        </datalist>
 
         <CommentThread
           cardId={card.id}

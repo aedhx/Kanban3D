@@ -4,7 +4,14 @@ import { getDb } from '@/db'
 import { getCardWithCount } from '@/db/queries'
 import { STATUS_LABELS, cards } from '@/db/schema'
 import { isAuthenticated } from '@/lib/auth'
-import { isStatus, normalizeDate, normalizeQuantity, normalizeText } from '@/lib/cards'
+import {
+  LIMITS,
+  isStatus,
+  normalizeCount,
+  normalizeDate,
+  normalizeQuantity,
+  normalizeText,
+} from '@/lib/cards'
 import { notify } from '@/lib/notify'
 
 export const runtime = 'nodejs'
@@ -73,6 +80,13 @@ export async function PATCH(request: Request, { params }: Params) {
   if ('notes' in body) updates.notes = normalizeText(body.notes)
   if ('quantity' in body) updates.quantity = normalizeQuantity(body.quantity)
   if ('dueDate' in body) updates.dueDate = normalizeDate(body.dueDate)
+  if ('printMinutes' in body)
+    updates.printMinutes = normalizeCount(body.printMinutes, LIMITS.printMinutes)
+  if ('filamentGrams' in body)
+    updates.filamentGrams = normalizeCount(body.filamentGrams, LIMITS.filamentGrams)
+  if ('material' in body) updates.material = normalizeText(body.material, 40)
+  if ('fileCount' in body) updates.fileCount = normalizeCount(body.fileCount, LIMITS.fileCount)
+  if ('pieceCount' in body) updates.pieceCount = normalizeCount(body.pieceCount, LIMITS.pieceCount)
 
   const [updated] = await db.update(cards).set(updates).where(eq(cards.id, id)).returning()
   const withCount = (await getCardWithCount(id)) ?? { ...updated, commentCount: 0 }

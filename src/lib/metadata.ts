@@ -15,6 +15,17 @@ export type ModelMetadata = {
   imageUrl?: string
   author?: string
   description?: string
+  /**
+   * Coût d'impression, quand la plateforme le fournit. MakerWorld le calcule
+   * depuis le trancheur et le donne presque toujours ; sur Printables il dépend
+   * de l'auteur — un tiers des modèles environ, et jamais la matière. Ces champs
+   * restent donc souvent vides, et l'interface les laisse modifier à la main.
+   */
+  printMinutes?: number
+  filamentGrams?: number
+  material?: string
+  fileCount?: number
+  pieceCount?: number
   /** Plateforme reconnue, sert à afficher un petit badge sur la carte. */
   source?: string
   /** Vrai si on a réellement obtenu des informations de la plateforme. */
@@ -77,6 +88,17 @@ async function fetchWithTimeout(url: string, init?: RequestInit): Promise<Respon
       ...init?.headers,
     },
   })
+}
+
+/** Les nombres de Printables arrivent en chaînes (« 3.24 », « 39.00 »). */
+function toNumber(value: unknown): number {
+  const n = typeof value === 'number' ? value : Number.parseFloat(String(value ?? ''))
+  return Number.isFinite(n) ? n : 0
+}
+
+/** Un zéro signifie « non renseigné » sur ces plateformes, pas « gratuit ». */
+function positive(value: number | null | undefined): number | undefined {
+  return typeof value === 'number' && value > 0 ? value : undefined
 }
 
 function decodeEntities(input: string): string {
@@ -259,8 +281,14 @@ async function fromPrintables(url: URL): Promise<ModelMetadata | null> {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      query:
-        'query PrintDetail($id: ID!) { print(id: $id) { id name summary image { filePath } user { publicUsername handle } } }',
+      query: `query PrintDetail($id: ID!) {
+        print(id: $id) {
+          id name summary
+          image { filePath }
+          user { publicUsername handle }
+          printDuration weight usedMaterial numPieces filesCount
+        }
+      }`,
       variables: { id },
     }),
   })
@@ -273,6 +301,11 @@ async function fromPrintables(url: URL): Promise<ModelMetadata | null> {
         summary?: string
         image?: { filePath?: string } | null
         user?: { publicUsername?: string; handle?: string } | null
+        printDuration?: string | null
+        weight?: string | null
+        usedMaterial?: string | null
+        numPieces?: number | null
+        filesCount?: number | null
       } | null
     }
   }
@@ -286,6 +319,13 @@ async function fromPrintables(url: URL): Promise<ModelMetadata | null> {
     imageUrl: filePath ? `https://media.printables.com/${filePath.replace(/^\/+/, '')}` : undefined,
     author: print.user?.publicUsername || print.user?.handle || undefined,
     description: toPlainText(print.summary),
+    // Attention à l'unité : Printables exprime la durée en heures décimales
+    // (« 3.24 » vaut 3 h 14), là où MakerWorld compte en secondes.
+    printMinutes: positive(Math.round(toNumber(print.printDuration) * 60)),
+    filamentGrams: positive(Math.round(toNumber(print.weight))),
+    material: print.usedMaterial?.trim() || undefined,
+    pieceCount: positive(print.numPieces),
+    fileCount: positive(print.filesCount),
     source: 'Printables',
     resolved: true,
   }
@@ -306,6 +346,17 @@ async function fromMakerWorld(url: URL): Promise<ModelMetadata | null> {
     coverUrl?: string
     summary?: string
     designCreator?: { name?: string } | null
+    instances?: Array<{
+      extention?: {
+        modelInfo?: {
+          plates?: Array<{
+            prediction?: number | null
+            weight?: number | null
+            filaments?: Array<{ type?: string | null }> | null
+          }> | null
+        } | null
+      } | null
+    }> | null
   }
   if (!json.title) return null
 
@@ -314,8 +365,53 @@ async function fromMakerWorld(url: URL): Promise<ModelMetadata | null> {
     imageUrl: json.coverUrl || undefined,
     author: json.designCreator?.name || undefined,
     description: toPlainText(json.summary),
+    ...printProfile(json.instances),
     source: 'MakerWorld',
     resolved: true,
+  }
+}
+
+/**
+ * Coût d'impression d'un modèle MakerWorld, lu dans le premier profil publié.
+ *
+ * Ces valeurs viennent du trancheur — un modèle en plusieurs plateaux additionne
+ * donc ses durées et ses poids. `prediction` est en secondes, contrairement aux
+ * heures décimales de Printables.
+ */
+function printProfile(
+  instances:
+    | Array<{
+        extention?: {
+          modelInfo?: {
+            plates?: Array<{
+              prediction?: number | null
+              weight?: number | null
+              filaments?: Array<{ type?: string | null }> | null
+            }> | null
+          } | null
+        } | null
+      }>
+    | null
+    | undefined,
+): Pick<ModelMetadata, 'printMinutes' | 'filamentGrams' | 'material'> {
+  const plates = instances?.[0]?.extention?.modelInfo?.plates ?? []
+  if (plates.length === 0) return {}
+
+  let seconds = 0
+  let grams = 0
+  const materials = new Set<string>()
+  for (const plate of plates) {
+    seconds += plate.prediction ?? 0
+    grams += plate.weight ?? 0
+    for (const filament of plate.filaments ?? []) {
+      if (filament.type?.trim()) materials.add(filament.type.trim())
+    }
+  }
+
+  return {
+    printMinutes: positive(Math.round(seconds / 60)),
+    filamentGrams: positive(Math.round(grams)),
+    material: materials.size ? [...materials].join(' + ') : undefined,
   }
 }
 

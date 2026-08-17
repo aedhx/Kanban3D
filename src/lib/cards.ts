@@ -28,6 +28,27 @@ export function normalizeQuantity(value: unknown): number {
 }
 
 /**
+ * Compteur optionnel : durée, poids, nombre de fichiers ou de pièces.
+ *
+ * Zéro devient `null` : sur ces cartes, « 0 minute » ne veut rien dire, c'est
+ * « pas renseigné ». Les plateformes emploient d'ailleurs zéro dans ce sens.
+ */
+export function normalizeCount(value: unknown, max: number): number | null {
+  if (value === null || value === undefined || value === '') return null
+  const n = typeof value === 'number' ? value : Number.parseInt(String(value), 10)
+  if (!Number.isFinite(n) || n <= 0) return null
+  return Math.min(max, Math.trunc(n))
+}
+
+/** Bornes hautes, larges mais finies, pour écarter les saisies absurdes. */
+export const LIMITS = {
+  printMinutes: 100_000, // ~69 jours
+  filamentGrams: 100_000, // 100 kg
+  fileCount: 10_000,
+  pieceCount: 10_000,
+} as const
+
+/**
  * Échéance au format `AAAA-MM-JJ`. On refuse tout le reste plutôt que de laisser
  * Postgres interpréter une chaîne ambiguë comme « 03/04/2026 ».
  */

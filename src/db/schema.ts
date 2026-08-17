@@ -51,6 +51,21 @@ export const cards = pgTable('cards', {
    */
   dueDate: date('due_date'),
 
+  /**
+   * Ce que coûte l'impression. Rempli automatiquement quand la plateforme le
+   * fournit, saisissable à la main sinon — ce qui est le cas le plus fréquent :
+   * MakerWorld calcule ces valeurs depuis le trancheur, mais sur Printables
+   * seul un tiers des auteurs les renseigne, et jamais la matière. Celui qui
+   * imprime connaît les vrais chiffres après avoir tranché.
+   */
+  printMinutes: integer('print_minutes'),
+  filamentGrams: integer('filament_grams'),
+  material: text('material'),
+
+  /** Nombre de fichiers et de pièces : prévient qu'il y a un assemblage. */
+  fileCount: integer('file_count'),
+  pieceCount: integer('piece_count'),
+
   // Qui a fait quoi (simple étiquette, pas un compte)
   requestedBy: text('requested_by').notNull(),
   lastMovedBy: text('last_moved_by'),

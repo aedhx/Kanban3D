@@ -2,8 +2,9 @@
 
 Un tableau d'impressions 3D partagé à deux. **On colle le lien d'un modèle**
 (Printables, MakerWorld, Thingiverse, Cults3D…) **et la carte se crée toute
-seule** dans « À imprimer », titre, image et auteur compris. Il ne reste plus
-qu'à la faire avancer de colonne au fil de l'impression.
+seule** dans « À imprimer », titre, image, auteur et coût d'impression compris —
+durée, filament, matière, nombre de pièces. Il ne reste plus qu'à la faire
+avancer de colonne au fil de l'impression.
 
 **À imprimer → En impression → Fait.** Pas de compte, pas de collection, pas
 d'export : un seul écran, un code partagé.
@@ -159,6 +160,31 @@ pas de la même façon :
 Cette fonction **n'échoue jamais** : si une plateforme ne répond pas, la carte se
 crée quand même avec un titre déduit de l'URL, à corriger à la main. C'est utile
 en pratique — Cults3D refuse parfois les requêtes selon l'adresse IP appelante.
+
+### Coût d'impression
+
+Au-delà du titre, de l'image et de l'auteur, les cartes portent ce que
+l'impression va coûter : **durée**, **filament**, **matière**, et le nombre de
+**pièces** et de **fichiers** — ce dernier prévenant qu'il y a un assemblage.
+La carte les résume en une ligne (« 3 h 14 · 39 g · PETG »), le panneau les rend
+modifiables.
+
+Deux plateformes les publient, chacune à sa façon, et c'est là qu'est le piège :
+
+| Plateforme | Champs | Unité d'origine |
+| --- | --- | --- |
+| Printables | durée, poids, matière, pièces, fichiers | durée en **heures décimales** (`3.24` = 3 h 14) |
+| MakerWorld | durée, poids, matière | durée en **secondes**, à sommer sur toutes les plaques |
+
+Tout est stocké en minutes et en grammes. Mesuré sur quinze modèles Printables :
+le nombre de fichiers remonte toujours, la durée, le poids et le nombre de pièces
+une fois sur trois, la matière jamais — l'auteur remplit ce qu'il veut. D'où le
+principe : **rempli tout seul quand c'est disponible, modifiable partout**, la
+saisie primant toujours sur la plateforme. `npm run test:platforms` affiche ce
+que chaque plateforme donne réellement aujourd'hui.
+
+Zéro est traité comme « non renseigné » : les plateformes l'emploient dans ce
+sens, et « 0 minute » ne veut rien dire sur une carte.
 
 ### Vignettes
 

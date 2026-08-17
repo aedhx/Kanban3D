@@ -5,8 +5,10 @@ import { listCards } from '@/db/queries'
 import { cards } from '@/db/schema'
 import { isAuthenticated } from '@/lib/auth'
 import {
+  LIMITS,
   POSITION_STEP,
   isStatus,
+  normalizeCount,
   normalizeDate,
   normalizeQuantity,
   normalizeText,
@@ -81,6 +83,15 @@ export async function POST(request: Request) {
       color: normalizeText(body.color, 60),
       notes: normalizeText(body.notes),
       dueDate: normalizeDate(body.dueDate),
+      // Ce que coûte l'impression : la saisie prime, la plateforme complète.
+      printMinutes:
+        normalizeCount(body.printMinutes, LIMITS.printMinutes) ?? resolved?.printMinutes ?? null,
+      filamentGrams:
+        normalizeCount(body.filamentGrams, LIMITS.filamentGrams) ?? resolved?.filamentGrams ?? null,
+      material: normalizeText(body.material, 40) ?? resolved?.material ?? null,
+      fileCount: normalizeCount(body.fileCount, LIMITS.fileCount) ?? resolved?.fileCount ?? null,
+      pieceCount:
+        normalizeCount(body.pieceCount, LIMITS.pieceCount) ?? resolved?.pieceCount ?? null,
       requestedBy,
       doneAt: status === 'done' ? new Date() : null,
     })
