@@ -22,9 +22,20 @@ const FIELD =
  * créée en deux clics dans OctoEverywhere, révocable au même endroit. D'où le
  * ton de cette page : un champ, un bouton, et le reste replié.
  */
-export function PrinterSettings({ initial, origin }: { initial: PrinterView; origin: string }) {
+export function PrinterSettings({
+  initial,
+  // L'adresse arrive à part : elle ne fait plus partie de ce que l'API renvoie au
+  // tableau, c'est un sésame et cette page est le seul endroit qui l'affiche.
+  adresse,
+  origin,
+}: {
+  initial: PrinterView
+  adresse: string | null
+  origin: string
+}) {
   const [name, setName] = useState(initial.name)
-  const [statusUrl, setStatusUrl] = useState(initial.statusUrl ?? '')
+  const [statusUrl, setStatusUrl] = useState(adresse ?? '')
+  const [autoAdvance, setAutoAdvance] = useState(initial.autoAdvance)
   const [secret, setSecret] = useState('')
   const [webhookToken, setWebhookToken] = useState('')
   const [hasSecret, setHasSecret] = useState(initial.hasSecret)
@@ -42,6 +53,7 @@ export function PrinterSettings({ initial, origin }: { initial: PrinterView; ori
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name,
+          autoAdvance,
           statusUrl: statusUrl.trim() || null,
           // Champ laissé vide : on ne touche pas au secret déjà enregistré.
           ...(secret ? { statusSecret: secret } : {}),
@@ -118,6 +130,29 @@ export function PrinterSettings({ initial, origin }: { initial: PrinterView; ori
           l’affaire.
         </p>
       </section>
+
+      {/*
+        L'avance automatique. Activée par défaut : c'est l'intérêt d'avoir branché
+        la machine. L'interrupteur existe pour le jour où les noms de fichiers ne
+        ressemblent plus aux titres des cartes.
+      */}
+      <label className="flex min-h-10 cursor-pointer items-start gap-2 text-sm">
+        <input
+          id="p-auto"
+          type="checkbox"
+          checked={autoAdvance}
+          onChange={(e) => setAutoAdvance(e.target.checked)}
+          className="mt-0.5 h-4 w-4 accent-[var(--accent)]"
+        />
+        <span>
+          Faire avancer les cartes toute seule
+          <span className="mt-0.5 block text-xs text-muted">
+            Quand une impression démarre, la carte du même nom passe en « En impression » ; quand
+            elle se termine, elle passe en « Fait » avec sa photo et le filament réellement
+            consommé.
+          </span>
+        </span>
+      </label>
 
       <div className="flex items-center gap-2">
         <button

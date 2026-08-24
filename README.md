@@ -115,6 +115,38 @@ dernier état connu et affiche son âge plutôt qu'un écran vide.
 Sans imprimante configurée, il n'y a pas de bandeau : l'application marche
 exactement comme avant.
 
+### Le tableau s'avance tout seul
+
+C'est là que la machine cesse d'être un affichage et devient un collègue.
+
+Quand une impression démarre, **la carte du même nom passe en « En impression »**.
+Quand elle se termine, elle passe en **« Fait »**, avec le filament réellement
+consommé et une photo prise par la webcam. Plus personne ne tient les comptes : le
+tableau reflète ce qui se passe vraiment dans le garage.
+
+C'est délibérément prudent, parce que rapprocher un nom de fichier d'un titre de
+carte est une heuristique qui se trompera : il faut **exactement une** carte
+candidate, une carte refusée n'est jamais déplacée, une impression annulée ne
+remplit pas « Fait », et une photo prise à la main n'est jamais écrasée. Au pire,
+une carte se retrouve dans la mauvaise colonne — ce qu'un clic corrige. Et un
+interrupteur, dans les réglages, coupe tout.
+
+### Un objet en plusieurs morceaux
+
+Un bouton poussoir en trois pièces, c'est trois impressions et **une seule carte**.
+Pas de carte maître, pas de sous-cartes : ça fausserait tous les comptes du
+tableau, et la règle « trois colonnes, une liste » tient depuis le début.
+
+La carte compte simplement où elle en est — `1/3 pièces`, puis `2/3` — et ne part
+en « Fait » qu'à la dernière. Le filament s'additionne au fil des morceaux.
+
+### Ce que la machine remarque avant nous
+
+Si **Gadget**, la surveillance par IA d'OctoEverywhere, suspecte un raté, le
+bandeau le dit. Et si le partage inclut une caméra, une vignette de la webcam
+s'affiche pendant l'impression, cliquable pour l'agrandir — servie par
+l'application, jamais par un lien qui traînerait dans le navigateur.
+
 ---
 
 ## La photo de ce qui est sorti
@@ -141,8 +173,8 @@ de laquelle le panneau parle.
 
 ![Le panneau latéral](docs/images/panneau-lateral.png)
 
-Priorité, quantité, couleur, multi-couleur, remarque, colonne, suppression : tout
-est là. Et enregistrer ne referme rien.
+Priorité, quantité, couleur, multi-couleur, pièces déjà faites, remarque, refus,
+colonne, suppression : tout est là. Et enregistrer ne referme rien.
 
 ---
 
@@ -165,9 +197,34 @@ téléphone, le glisser-déposer reste capricieux selon les navigateurs, les bou
 garantissent que ça marche toujours.
 
 Le tableau se rafraîchit tout seul toutes les dix secondes et au retour sur
-l'onglet : ce que l'un déplace, l'autre le voit. Et une notification part sur les
-téléphones à chaque demande, chaque déplacement et chaque message — Telegram,
-ntfy ou n'importe quel webhook.
+l'onglet : ce que l'un déplace, l'autre le voit.
+
+### Être prévenu sur le téléphone
+
+Une notification part à chaque demande, chaque déplacement et chaque message — et
+quand une impression se termine ou tourne mal. Trois destinations au choix, à
+régler dans l'application : **Telegram**, **ntfy**, ou n'importe quel webhook —
+Discord, Slack, n8n.
+
+![Le réglage des notifications](docs/images/notifications.png)
+
+Un bouton « Envoyer un test » envoie vraiment, et répète mot pour mot ce que le
+service répond. C'est là qu'on se plante — un identifiant de groupe recopié sans
+son signe moins, un bot jamais ajouté à la conversation — et un message d'erreur
+vaut mieux qu'une notification qui n'arrive jamais.
+
+---
+
+## Quand tu ne peux pas
+
+Celui qui imprime peut dire non, avec la raison : « plus de filament noir », « trop
+grand pour le plateau ». La carte reste là, grisée, sa raison en clair, et descend
+au bas de la file — elle ne disparaît pas, et personne ne redemande la même chose
+la semaine suivante.
+
+![Une carte refusée](docs/images/refus.png)
+
+Un clic annule le refus et la carte reprend sa place.
 
 ---
 
@@ -184,6 +241,12 @@ place sous l'œil.
 
 C'est une date en moins à saisir : la question n'a jamais été « pour quand », mais
 « laquelle d'abord ».
+
+Et comme le tableau connaît les durées, chaque carte annonce **quand elle sera
+prête** : « prête dans ~6 h », « prête jeudi ». On additionne le temps restant de
+l'impression en cours et les durées de celles qui passent avant. Au conditionnel,
+parce que ça suppose que tout s'enchaîne — mais ça répond enfin à la seule question
+que pose celui qui attend.
 
 Et pour que « Fait » ne devienne pas un mur : au-delà de trente jours, une carte
 terminée se replie dans un historique qui ne s'ouvre que si on le demande.

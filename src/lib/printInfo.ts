@@ -103,10 +103,17 @@ export function printCostParts(card: PrintFields): string[] {
   return parts
 }
 
-/** « 8 pièces », pour prévenir qu'il y a un assemblage. Tait la pièce unique. */
-export function formatPieces(pieceCount: number | null): string | null {
+/**
+ * « 8 pièces », pour prévenir qu'il y a un assemblage — et « 3/8 pièces » dès que
+ * l'objet a commencé à sortir morceau par morceau.
+ *
+ * Tait la pièce unique : « 1 pièce » n'apprend rien.
+ */
+export function formatPieces(pieceCount: number | null, piecesDone = 0): string | null {
   if (!pieceCount || pieceCount <= 1) return null
-  return `${pieceCount} pièces`
+  return piecesDone > 0
+    ? `${Math.min(piecesDone, pieceCount)}/${pieceCount} pièces`
+    : `${pieceCount} pièces`
 }
 
 /** « 22 fichiers ». Tait le fichier unique, qui va de soi. */
@@ -118,4 +125,64 @@ export function formatFiles(fileCount: number | null): string | null {
 /** Y a-t-il quoi que ce soit à afficher ? */
 export function hasPrintInfo(card: PrintFields): boolean {
   return printCostParts(card).length > 0 || Boolean(formatPieces(card.pieceCount))
+}
+
+/**
+ * Quand chaque carte de la file sera prête.
+ *
+ * On part du temps restant de l'impression en cours, puis on empile les durées
+ * des cartes dans l'ordre où elles passeront — quantités comprises, puisque
+ * imprimer la même pièce quatre fois prend quatre fois plus longtemps.
+ *
+ * L'estimation suppose que les impressions s'enchaînent sans interruption, ce qui
+ * n'arrive jamais tout à fait : personne ne relance à trois heures du matin. C'est
+ * pour ça que l'affichage reste au conditionnel — un ordre de grandeur honnête vaut
+ * mieux qu'une heure précise et fausse.
+ *
+ * Une carte sans durée connue n'a pas d'estimation et **ne décale pas** les
+ * suivantes : on ne sait pas combien elle prendra, autant ne rien inventer.
+ *
+ * @param ordre les cartes de « À imprimer », déjà dans l'ordre d'affichage
+ * @param resteEnCoursSec temps restant sur la machine, s'il y a une impression
+ * @returns minutes d'attente avant que chaque carte soit terminée, par identifiant
+ */
+export function queueEta(
+  ordre: Array<{ id: string; printMinutes: number | null; quantity: number }>,
+  resteEnCoursSec: number | null,
+): Map<string, number> {
+  const eta = new Map<string, number>()
+  let cumul = resteEnCoursSec && resteEnCoursSec > 0 ? Math.round(resteEnCoursSec / 60) : 0
+
+  for (const card of ordre) {
+    if (!card.printMinutes || card.printMinutes <= 0) continue
+    cumul += card.printMinutes * card.quantity
+    eta.set(card.id, cumul)
+  }
+  return eta
+}
+
+/** Les jours, pour dire « prête jeudi » plutôt que « prête dans 61 h ». */
+const JOURS = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi']
+
+/**
+ * L'attente, dite comme on la dirait à voix haute.
+ *
+ * Sous une heure on donne les minutes, dans la journée les heures, au-delà le jour
+ * de la semaine : « prête jeudi » se comprend d'un coup d'œil, « dans 61 h »
+ * demande un calcul.
+ */
+export function formatEta(minutes: number, now = new Date()): string {
+  if (minutes < 60) return `prête dans ~${Math.max(5, minutes)} min`
+  if (minutes < 20 * 60) return `prête dans ~${formatPrintTime(minutes)}`
+
+  const quand = new Date(now.getTime() + minutes * 60_000)
+  const joursÉcart = Math.round(
+    (new Date(quand.getFullYear(), quand.getMonth(), quand.getDate()).getTime() -
+      new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()) /
+      86_400_000,
+  )
+  if (joursÉcart <= 1) return 'prête demain'
+  // Au-delà d'une semaine, le nom du jour redevient ambigu.
+  if (joursÉcart < 7) return `prête ${JOURS[quand.getDay()]}`
+  return `prête vers le ${quand.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}`
 }

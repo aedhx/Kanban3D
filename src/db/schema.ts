@@ -103,10 +103,33 @@ export const cards = pgTable('cards', {
   /** Nombre de fichiers et de pièces : prévient qu'il y a un assemblage. */
   fileCount: integer('file_count'),
   pieceCount: integer('piece_count'),
+  /**
+   * Pièces déjà sorties, pour un objet qui s'imprime en plusieurs fois.
+   *
+   * C'est ce qui évite de faire d'un objet en trois morceaux trois cartes — ou
+   * pire, une carte maître et des sous-cartes, qui fausseraient tous les comptes du
+   * tableau. Une carte reste une carte ; elle dit seulement où elle en est.
+   *
+   * L'imprimante l'incrémente à chaque fin d'impression et ne classe la carte en
+   * « Fait » qu'à la dernière pièce. Corrigeable à la main, parce que le
+   * rapprochement entre un nom de fichier et un titre se trompera.
+   */
+  piecesDone: integer('pieces_done').notNull().default(0),
 
   // Qui a fait quoi (simple étiquette, pas un compte)
   requestedBy: text('requested_by').notNull(),
   lastMovedBy: text('last_moved_by'),
+
+  /**
+   * Motif de refus, quand celui qui imprime dit non — « plus de filament noir »,
+   * « trop grand pour le plateau ».
+   *
+   * Une colonne, et pas une quatrième colonne de tableau : la règle « trois
+   * colonnes » tient depuis le début. La carte reste où elle est, grisée, et
+   * descend au bas de la file. Non renseigné = pas refusée ; il n'y a donc pas
+   * de refus sans raison, ce qui est exactement le but.
+   */
+  declinedReason: text('declined_reason'),
 
   /**
    * Date de passage en « Fait ». Sert à archiver les vieilles cartes ; on ne peut
@@ -186,6 +209,12 @@ export const printer = pgTable('printer', {
    */
   statusSecret: text('status_secret'),
   webhookToken: text('webhook_token'),
+  /**
+   * L'imprimante fait-elle avancer les cartes toute seule ? Activé par défaut :
+   * c'est l'intérêt de l'avoir branchée. Un interrupteur existe pour le jour où
+   * les noms de fichiers ne ressemblent plus aux titres des cartes.
+   */
+  autoAdvance: boolean('auto_advance').notNull().default(true),
 
   // Dernier état connu
   /** Libellé brut renvoyé par OctoEverywhere, traduit à l'affichage. */
@@ -202,11 +231,49 @@ export const printer = pgTable('printer', {
   fileName: text('file_name'),
   nozzleTemp: doublePrecision('nozzle_temp'),
   bedTemp: doublePrecision('bed_temp'),
+  /**
+   * Gadget, la détection d'échec par IA d'OctoEverywhere : un libellé et sa
+   * couleur (`g`, `y`, `r`, `w`). Restent nuls si Gadget n'est pas activé sur le
+   * compte, et le bandeau n'en dit alors rien.
+   */
+  gadgetStatus: text('gadget_status'),
+  gadgetColor: text('gadget_color'),
+  /**
+   * Filament consommé, tel que la machine le compte. En milligrammes, comme
+   * l'API : convertir à l'entrée ferait perdre de la précision pour rien.
+   */
+  filamentUsedMg: integer('filament_used_mg'),
   /** Quand cet état a été lu — c'est lui qui dit si l'information est fraîche. */
   seenAt: timestamp('seen_at', { withTimezone: true }),
   /** Dernière erreur rencontrée en interrogeant la machine, pour le diagnostic. */
   lastError: text('last_error'),
 
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+})
+
+/**
+ * Où partent les notifications.
+ *
+ * Une seule ligne, comme `printer`, et pour la même raison : c'est une
+ * configuration, pas une collection.
+ *
+ * Ces réglages vivaient dans des variables d'environnement, ce qui obligeait à
+ * redéployer pour changer de destination — et le résultat observable, c'est qu'ils
+ * n'ont jamais été renseignés. Les variables restent lues **en repli**, pour ne pas
+ * casser en silence un déploiement qui fonctionne : la base l'emporte quand elle
+ * est remplie, l'environnement prend la main quand elle est vide.
+ *
+ * Les jetons ne repartent jamais vers le navigateur : l'API dit seulement s'ils
+ * sont posés.
+ */
+export const notifications = pgTable('notifications', {
+  id: integer('id').primaryKey().default(1),
+  /** `telegram`, `ntfy` ou `webhook`. Nul = on ne notifie rien depuis la base. */
+  transport: text('transport'),
+  telegramToken: text('telegram_token'),
+  telegramChat: text('telegram_chat'),
+  ntfyTopic: text('ntfy_topic'),
+  webhookUrl: text('webhook_url'),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 })
 
@@ -222,3 +289,4 @@ export type Card = typeof cards.$inferSelect
 export type NewCard = typeof cards.$inferInsert
 export type Comment = typeof comments.$inferSelect
 export type Printer = typeof printer.$inferSelect
+export type NotificationSettings = typeof notifications.$inferSelect

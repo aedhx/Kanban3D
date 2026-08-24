@@ -43,6 +43,13 @@
       "when": 1786975610490,
       "tag": "0005_unknown_master_mold",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1787595082300,
+      "tag": "0006_overrated_sprite",
+      "breakpoints": true
     }
   ]
 }

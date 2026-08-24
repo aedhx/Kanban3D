@@ -53,6 +53,14 @@ const LIVE_STATUS_PATH = '/api/live/status'
 /** L'API d'état d'une « Shared Connection ». */
 const COMMAND_STATUS_PATH = '/octoeverywhere-command-api/status'
 
+/**
+ * L'aperçu de la webcam. Servi par le CDN d'OctoEverywhere, sans authentification
+ * — c'est la même adresse que la page de partage met dans sa propre balise
+ * `og:image`. Elle répond 404 quand la machine est déconnectée ou n'a pas de
+ * caméra, ce qui n'est pas une erreur : il n'y a simplement rien à montrer.
+ */
+const LIVE_SNAPSHOT_PATH = '/cdn-api/live/snapshot'
+
 /** Une redirection est normale ici ; une chaîne de redirections ne l'est pas. */
 const MAX_REDIRECTIONS = 3
 
@@ -114,6 +122,20 @@ export type PrinterReading = {
   fileName: string | null
   nozzleTemp: number | null
   bedTemp: number | null
+  /**
+   * Gadget, la détection d'échec par IA d'OctoEverywhere : un libellé et sa
+   * couleur. Nuls quand Gadget n'est pas activé sur le compte.
+   */
+  gadgetStatus: string | null
+  gadgetColor: string | null
+  /** Filament consommé d'après la machine, en milligrammes. */
+  filamentUsedMg: number | null
+  /**
+   * Image de l'impression terminée, quand OctoEverywhere en a gardé une. Publique
+   * — sa propre page la charge sans cookie — donc utilisable comme photo de
+   * résultat.
+   */
+  trackedImageUrl: string | null
 }
 
 export type PrinterProbe =
@@ -130,6 +152,45 @@ const texte = (value: unknown): string | null =>
 const ID_SEUL = /^[A-Za-z0-9_-]{6,40}$/
 
 /**
+ * Reconnaît un lien partagé et en tire l'identifiant **préfixé**, avec l'origine
+ * où le demander.
+ *
+ * Le préfixe n'est pas décoratif : sans lui l'API répond « Invalid Id », et avec
+ * le mauvais elle répond 401. Tiret pour un lien `/live/`, point pour un `/view/`.
+ *
+ * L'origine du lien collé est conservée : le serveur régional
+ * (`lon.octoeverywhere.com`) répond aussi bien que l'hôte générique, et réécrire
+ * l'hôte reviendrait à corriger l'utilisateur sans raison.
+ */
+function lienPartagé(saisi: string): { id: string; origine: string } | null {
+  // L'identifiant seul, tel qu'on le lit à la fin d'un lien partagé.
+  if (ID_SEUL.test(saisi) && !saisi.includes('.')) {
+    return { id: `-${saisi}`, origine: `https://${OCTO_HOST}` }
+  }
+
+  let url: URL
+  try {
+    url = new URL(saisi)
+  } catch {
+    return null
+  }
+
+  // Une URL d'API déjà formée porte l'identifiant tout prêt.
+  if (url.pathname.toLowerCase().startsWith(LIVE_STATUS_PATH)) {
+    const id = url.searchParams.get('id')
+    return id ? { id, origine: url.origin } : null
+  }
+
+  const lien = url.pathname.match(/^\/(live|view)\/([^/]+)\/?$/i)
+  if (!lien) return null
+  const [, type, id] = lien
+  return {
+    id: `${type.toLowerCase() === 'view' ? '.' : '-'}${decodeURIComponent(id)}`,
+    origine: url.origin,
+  }
+}
+
+/**
  * Construit l'URL d'état à partir de ce qu'a saisi l'utilisateur.
  *
  * On accepte l'adresse d'un Live Link, celle d'une vue rapide, l'identifiant tout
@@ -140,8 +201,8 @@ export function statusEndpoint(raw: string): URL | null {
   const saisi = raw.trim()
   if (!saisi) return null
 
-  // L'identifiant seul, tel qu'on le lit à la fin d'un lien partagé.
-  if (ID_SEUL.test(saisi) && !saisi.includes('.')) return urlLiveLink(`-${saisi}`)
+  const partagé = lienPartagé(saisi)
+  if (partagé) return urlLive(LIVE_STATUS_PATH, partagé)
 
   let url: URL
   try {
@@ -149,35 +210,27 @@ export function statusEndpoint(raw: string): URL | null {
   } catch {
     return null
   }
-
-  // Déjà une URL d'API : on n'y touche pas.
-  if (url.pathname.toLowerCase().startsWith(LIVE_STATUS_PATH)) return url
+  // Déjà l'URL d'API d'une Shared Connection : on n'y touche pas.
   if (url.pathname.includes(COMMAND_STATUS_PATH)) return url
-
-  /*
-   * Un lien partagé. Le préfixe de l'identifiant dépend du type de lien, et il
-   * n'est pas décoratif : sans lui l'API répond « Invalid Id », et avec le mauvais
-   * elle répond 401.
-   */
-  const lien = url.pathname.match(/^\/(live|view)\/([^/]+)\/?$/i)
-  if (lien) {
-    const [, type, id] = lien
-    // L'origine du lien collé est conservée : le serveur régional
-    // (`lon.octoeverywhere.com`) répond aussi bien que l'hôte générique, et
-    // réécrire l'hôte reviendrait à corriger l'utilisateur sans raison.
-    return urlLiveLink(
-      `${type.toLowerCase() === 'view' ? '.' : '-'}${decodeURIComponent(id)}`,
-      url.origin,
-    )
-  }
 
   // Reste la racine d'une Shared Connection : on y ajoute le chemin de son API.
   return new URL(COMMAND_STATUS_PATH.slice(1), url.href.endsWith('/') ? url.href : `${url.href}/`)
 }
 
-function urlLiveLink(idPréfixé: string, origine = `https://${OCTO_HOST}`): URL {
-  const url = new URL(`${origine}${LIVE_STATUS_PATH}`)
-  url.searchParams.set('id', idPréfixé)
+/**
+ * L'aperçu de la webcam, pour la même adresse.
+ *
+ * Rien pour une « Shared Connection » : son API d'aperçu n'est pas documentée, et
+ * l'inventer donnerait une vignette cassée plutôt qu'une absence de vignette.
+ */
+export function snapshotEndpoint(raw: string): URL | null {
+  const partagé = lienPartagé(raw.trim())
+  return partagé ? urlLive(LIVE_SNAPSHOT_PATH, partagé) : null
+}
+
+function urlLive(chemin: string, { id, origine }: { id: string; origine: string }): URL {
+  const url = new URL(`${origine}${chemin}`)
+  url.searchParams.set('id', id)
   return url
 }
 
@@ -380,6 +433,10 @@ function depuisLiveLink(r: Record<string, unknown>): PrinterReading {
     fileName: texte(r.FileName ?? r.fileName),
     nozzleTemp: nombre(r.HotendActual ?? r.hotendActual),
     bedTemp: nombre(r.BedActual ?? r.bedActual),
+    gadgetStatus: texte(r.GadgetStatus ?? r.gadgetStatus),
+    gadgetColor: texte(r.GadgetStatusColor ?? r.gadgetStatusColor),
+    filamentUsedMg: nombre(r.EstTotalFilamentWeightMg ?? r.estTotalFilamentWeightMg),
+    trackedImageUrl: texte(r.TrackedPrintCompleteImageUrl ?? r.trackedPrintCompleteImageUrl),
   }
 }
 
@@ -402,6 +459,11 @@ function depuisJobStatus(job: Record<string, unknown>): PrinterReading {
     fileName: texte(print.FileName ?? print.fileName),
     nozzleTemp: nombre(temps.HotendActual ?? temps.hotendActual),
     bedTemp: nombre(temps.BedActual ?? temps.bedActual),
+    // Cette API-là ne parle ni de Gadget, ni de filament, ni d'image de fin.
+    gadgetStatus: null,
+    gadgetColor: null,
+    filamentUsedMg: null,
+    trackedImageUrl: null,
   }
 }
 
@@ -483,6 +545,58 @@ export function readWebhook(payload: unknown): Partial<PrinterReading> | null {
     durationSec: nombre(p.DurationSec ?? p.durationSec ?? p.TotalDurationSec),
     fileName: texte(p.FileName ?? p.fileName ?? p.Filename),
   }
+}
+
+/** Ce qu'on accepte comme photo, et jusqu'à quel poids. */
+const IMAGE_MIMES = new Set(['image/jpeg', 'image/png', 'image/webp'])
+const IMAGE_MAX_BYTES = 3_000_000
+
+/**
+ * Va chercher une image de l'impression, pour en faire la photo du résultat.
+ *
+ * Deux sources, dans l'ordre : celle qu'OctoEverywhere garde d'une impression
+ * terminée, puis la webcam. La première est meilleure — elle est prise au bon
+ * moment et survit à l'extinction de la machine — mais elle n'existe que si le
+ * suivi d'impression est actif sur le compte.
+ *
+ * **Ne lève jamais.** Ne pas avoir de photo n'empêche rien : la carte garde
+ * l'image du modèle, et quelqu'un peut toujours en prendre une à la main.
+ */
+export async function fetchImage(
+  imageDeFin: string | null,
+  statusUrl: string | null,
+): Promise<{ mime: string; bytes: Buffer } | null> {
+  const sources = [imageDeFin, statusUrl ? snapshotEndpoint(statusUrl)?.toString() : null].filter(
+    (v): v is string => Boolean(v),
+  )
+
+  for (const source of sources) {
+    let url: URL
+    try {
+      url = new URL(source)
+    } catch {
+      continue
+    }
+    if (!autorisée(url)) continue
+
+    try {
+      const res = await fetchSuivi(url, { Accept: 'image/*' })
+      if (!res.ok) continue
+
+      const mime = (res.headers.get('content-type') ?? '').split(';')[0].trim().toLowerCase()
+      if (!IMAGE_MIMES.has(mime)) continue
+
+      const bytes = Buffer.from(await res.arrayBuffer())
+      // Rien à redimensionner ici : une image de webcam pèse peu, et se donner les
+      // moyens de la réduire côté serveur demanderait une dépendance native.
+      if (bytes.length === 0 || bytes.length > IMAGE_MAX_BYTES) continue
+
+      return { mime, bytes }
+    } catch {
+      // Source injoignable : on essaie la suivante, sinon tant pis.
+    }
+  }
+  return null
 }
 
 /**

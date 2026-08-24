@@ -55,7 +55,16 @@ const DEMANDES = [
   {
     url: 'https://makerworld.com/en/models/25507',
     par: 'Antoine',
-    edits: { color: 'PETG noir', notes: 'Deux batteries par support.' },
+    // En cours, et en deux morceaux : de quoi montrer le compteur de pièces.
+    edits: {
+      color: 'PETG noir',
+      notes: 'Deux batteries par support.',
+      pieceCount: 2,
+      piecesDone: 1,
+      printMinutes: 94,
+      filamentGrams: 52,
+      material: 'PETG',
+    },
     versColonne: 'printing',
   },
   {
@@ -63,6 +72,17 @@ const DEMANDES = [
     par: 'Antoine',
     edits: { color: 'Jaune' },
     versColonne: 'done',
+  },
+  {
+    // Une demande à laquelle celui qui imprime a dit non, avec la raison.
+    titre: 'Lampe champignon',
+    par: 'Antoine',
+    edits: {
+      color: 'Blanc translucide',
+      printMinutes: 320,
+      filamentGrams: 180,
+      declinedReason: 'Trop haut pour le plateau — il faudrait la couper en deux.',
+    },
   },
   {
     titre: 'Boîte à vis M3',

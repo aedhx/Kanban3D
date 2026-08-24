@@ -194,6 +194,18 @@ for (const dark of [false, true]) {
   await ctx.close()
 }
 
+/* ---------- Une demande refusée ---------- */
+{
+  const { ctx, page } = await open({})
+  const refusées = page.locator('[data-testid="declined-cards"]')
+  await refusées.waitFor({ state: 'visible', timeout: 10000 })
+  await refusées.scrollIntoViewIfNeeded()
+  await page.waitForTimeout(200)
+  await refusées.screenshot({ path: `${OUT}/refus.png` })
+  console.log('  refus.png')
+  await ctx.close()
+}
+
 /* ---------- Archive de la colonne « Fait » ---------- */
 {
   const { ctx, page } = await open({})
@@ -261,6 +273,18 @@ if (process.env.PRINTER_DEMO_URL) {
   await shot(page, 'imprimante-reglages', {
     clip: { x: 0, y: 0, width: 1440, height: Math.min(900, bas + 24) },
   })
+
+  /*
+   * Les notifications, deuxième section de la même page. Un `form` distinct : le
+   * sélecteur vise donc le second, pas le premier.
+   */
+  await page.locator('[data-testid="transport-telegram"]').click()
+  await page.waitForTimeout(300)
+  const bloc = page.locator('form').nth(1)
+  await bloc.scrollIntoViewIfNeeded()
+  await page.waitForTimeout(200)
+  await bloc.screenshot({ path: `${OUT}/notifications.png` })
+  console.log('  notifications.png')
 
   // On ne laisse pas la base de démonstration reliée à une imprimante.
   await page.evaluate(async () => {

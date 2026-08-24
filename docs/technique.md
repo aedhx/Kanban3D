@@ -165,7 +165,9 @@ src/
     api/printer/route.ts         GET le dernier état (rafraîchi si > 20 s) · PATCH la config
     api/printer/test/route.ts    POST interroge sans rien enregistrer, et diagnostique
     api/printer/webhook/route.ts POST les événements poussés par OctoEverywhere
-    reglages/page.tsx            les réglages de l'imprimante
+    api/printer/snapshot/        GET l'aperçu webcam, servi par nous
+    api/notifications/           GET/PATCH la destination · POST /test l'envoie vraiment
+    reglages/page.tsx            imprimante et notifications
   components/
     Board.tsx                    l'état du tableau, le rafraîchissement, dnd-kit
     Column.tsx  CardTile.tsx     une colonne, une carte
@@ -175,6 +177,7 @@ src/
     PhotoField.tsx               prise et envoi de la photo
     PrinterStrip.tsx             le bandeau d'état, au-dessus des colonnes
     PrinterSettings.tsx          le formulaire de l'imprimante
+    NotificationSettings.tsx     où partent les notifications
     Greeting.tsx                 le mot d'accueil qui s'écrit
     Thumbnail.tsx                vignette, CDN, et repli nommé
     LoginForm.tsx                la saisie du code
@@ -183,7 +186,9 @@ src/
   lib/
     metadata.ts                  les adaptateurs de plateformes — le cœur technique
     printer.ts                   OctoEverywhere : URL, lecture, webhooks, redirections
+    printerSync.ts               les transitions, et le tableau qui s'avance tout seul
     printerView.ts               ce que le navigateur a le droit de savoir de la machine
+    notifySettings.ts            d'où vient la configuration des notifications
     printInfo.ts                 mise en forme des durées, poids, prix, totaux
     photo.ts                     redimensionnement dans le navigateur
     board.ts  cards.ts           positions, déplacements, nettoyage des saisies
@@ -532,6 +537,9 @@ empêcher. Les redirections sont donc suivies à la main (`redirect: 'manual'`),
 au plus, et **chaque saut est revalidé**. Un parcours de test le vérifie, avec un
 nom d'apparence publique qui redirige vers une adresse interne.
 
+Toutes les récupérations passent par là, y compris l'aperçu webcam et la photo de
+fin : une seule porte, un seul contrôle.
+
 Limite assumée : le garde-fou lit le nom d'hôte, il ne résout pas le DNS. Un nom
 public pointant vers une adresse privée passe donc. Résoudre soi-même n'y suffirait
 pas complètement — entre la vérification et l'appel, la résolution peut changer — et
@@ -569,6 +577,155 @@ devrait l'expliquer ne l'explique pas, et le Live Link ayant réglé le problèm
 n'y avait plus de raison de deviner. Le bouton « Tester la connexion » rapporte la
 réponse brute — code HTTP et début du corps — pour trancher en une minute le jour où
 la question se reposera.
+
+### Le tableau s'avance tout seul
+
+`src/lib/printerSync.ts`, fonction `appliquerLecture(avant, lecture)`.
+
+**Un seul endroit pour deux appelants.** `GET /api/printer` et le webhook écrivent
+tous deux la ligne `printer` ; si chacun détectait les transitions de son côté, une
+impression suivie par les deux voies verrait sa carte déplacée deux fois. Les deux
+routes passent donc par cette fonction, qui compare l'état d'avant à celui d'après.
+
+Deux transitions, et deux seulement :
+
+| Ce qui change | Ce que le tableau fait |
+| --- | --- |
+| on n'imprimait pas (ou un autre fichier) → on imprime `F` | la carte de « À imprimer » qui correspond à `F` passe en « En impression » |
+| on imprimait `F` → état terminal réussi | cette carte passe en « Fait », avec le filament mesuré et une photo |
+
+`cancelled` et `error` ne déplacent **rien** : une impression ratée n'est pas un
+travail terminé, et le bandeau le dit déjà. Elles produisent une notification, elles.
+
+#### Ce qui est délibérément prudent
+
+Rapprocher un nom de fichier d'un titre de carte (`looksLikeSameJob`) est une
+heuristique, pas une vérité — elle se trompera. Les garde-fous existent pour que se
+tromper ne coûte rien :
+
+- il faut **exactement une** carte candidate ; zéro ou deux, on ne touche à rien ;
+- une carte refusée n'est jamais déplacée — la machine n'a pas à contredire un non ;
+- jamais de retour en arrière depuis « Fait » ;
+- une photo prise par un humain n'est jamais écrasée : celle-là est délibérée ;
+- `printer.auto_advance` coupe tout, et se règle dans l'application.
+
+`lastMovedBy` prend le nom de la machine, si bien que la notification existante se
+lit « 📦 L'imprimante d'Alexandre a déplacé « Exam Roulette » : À imprimer → En
+impression ». Aucun code de notification à ajouter : c'est le même événement qu'un
+déplacement à la main, et c'en est un.
+
+#### Les objets en plusieurs morceaux
+
+Un bouton poussoir en trois pièces, ce sont trois fichiers dont chacun ressemble au
+titre de la carte. Sans précaution, la première fin d'impression classait l'objet
+dans « Fait » avec les deux tiers du travail devant lui.
+
+D'où `cards.pieces_done` : l'imprimante compte, et ne classe qu'à `pieceCount`.
+
+**Une carte, pas trois — et surtout pas une carte maître avec des sous-cartes.**
+Ce serait la solution évidente et la mauvaise : elle fausserait le décompte des
+colonnes, les totaux d'heures et de filament, la priorité, l'attente et le
+glisser-déposer, pour représenter un objet que l'utilisateur considère comme un.
+
+Le filament mesuré **s'additionne** au fil des morceaux, mais seulement à partir du
+moment où c'est nous qui comptons (`piecesDone === 0` remplace, ensuite on ajoute) :
+ajouter une mesure de buse à une estimation d'auteur donnerait un chiffre qui ne
+veut rien dire.
+
+Un retour manuel en « À imprimer » remet le compteur à zéro — une carte qui remonte
+de « Fait » en affichant « 3/3 pièces » n'aurait aucun sens.
+
+### La photo, la webcam, et Gadget
+
+Trois champs de plus, tous **déjà présents** dans la réponse qu'on lisait :
+`GadgetStatus` / `GadgetStatusColor` (la surveillance par IA d'OctoEverywhere),
+`EstTotalFilamentWeightMg`, et `TrackedPrintCompleteImageUrl`.
+
+À la fin d'une impression, `fetchImage()` essaie dans l'ordre l'image de fin
+qu'OctoEverywhere conserve, puis la webcam — prise **au moment où l'on détecte la
+fin**, la pièce étant encore sur le plateau. Contrôles identiques à la route de
+photo existante (type, 3 Mo), et le téléchargement passe par le même `fetchSuivi()`
+revalidé à chaque redirection.
+
+La webcam vit sur un chemin distinct de l'API d'état, relevé dans la balise
+`og:image` de la page de partage elle-même :
+
+```
+GET https://octoeverywhere.com/cdn-api/live/snapshot?id=-<id>
+```
+
+`GET /api/printer/snapshot` fait l'aller-retour côté serveur. Le navigateur
+pourrait appeler l'adresse directement — elle est publique — mais il faudrait alors
+lui confier le lien, et **un Live Link est un sésame**. Il ne sort pas du serveur.
+
+**Ce que je n'ai pas pu vérifier** : les deux images. L'endpoint répond, mais
+renvoie `404` tant que le NAS n'est pas relié à l'imprimante. Les deux branches sont
+éprouvées localement — image servie *et* absente — et l'absence ne coûte qu'une
+vignette en moins.
+
+### Refuser, sans quatrième colonne
+
+`cards.declined_reason`. Une carte refusée reste où elle est, grisée, et **sort de
+la liste triable** — comme les cartes provisoires, et pour la même raison : elle n'a
+pas de rang dans une file qu'elle ne rejoindra pas.
+
+C'est aussi ce qui neutralise le piège du round précédent. Ajouter une bande de tri,
+c'est exactement ce qui avait cassé le glisser-déposer en introduisant la priorité.
+Deux parades, l'une derrière l'autre :
+
+1. `bandeDe(card)` — `declined ? -1 : priority` — est **partagée** par
+   `columnCards()` et `resolveDrop()`. Une seule définition, deux appelants ;
+2. une carte refusée n'étant pas rendue dans le `SortableContext`, elle ne peut pas
+   être la cible d'un dépôt. Le cas problématique n'existe plus, au lieu d'être
+   seulement gardé.
+
+Le refus n'est pas une modification, c'est une réponse : il part seul, tout de
+suite, avec sa propre notification (`kind: 'declined'`).
+
+### « Prête dans ~6 h »
+
+`queueEta()` dans `printInfo.ts`, pur calcul : le temps restant de l'impression en
+cours, puis le cumul des durées de « À imprimer » **dans l'ordre affiché**,
+quantités comprises.
+
+Une carte sans durée connue n'a pas d'estimation et ne décale pas les suivantes : on
+ignore ce qu'elle prendra, autant ne rien inventer.
+
+Le libellé reste au conditionnel — `~`, et une infobulle « si les impressions
+s'enchaînent ». L'estimation suppose des impressions bout à bout, ce qui n'arrive
+jamais tout à fait ; personne ne relance à trois heures du matin. Un ordre de
+grandeur annoncé comme tel vaut mieux qu'une heure précise et fausse.
+
+### Les notifications, réglées dans l'application
+
+Elles existaient depuis longtemps et n'ont jamais été branchées : il fallait poser
+des variables d'environnement sur l'hébergeur **et redéployer**. Elles sont
+maintenant dans la page Réglages, avec une table `notifications` à une ligne.
+
+`resolveTransport()` prend sa configuration en paramètre au lieu de lire
+`process.env` ; `notificationConfig()` (`src/lib/notifySettings.ts`) décide de la
+source :
+
+> **la base l'emporte quand elle nomme un transport, l'environnement reprend la
+> main quand elle est vide.**
+
+Sans ce repli, la création de la table ferait taire en silence un déploiement qui
+notifiait très bien la veille.
+
+Deux détails qui font la différence à l'usage :
+
+- **le bouton « Envoyer un test » envoie vraiment**, et répète la réponse du service
+  mot pour mot. C'est la seule façon de distinguer un `chat_id` recopié sans son
+  signe moins d'un bot jamais ajouté au groupe — deux pannes qui, autrement, se
+  ressemblent : rien n'arrive ;
+- **`/slack` est ajouté tout seul** à une URL de webhook Discord. C'était une note
+  dans `.env.example`, c'est-à-dire une note que personne ne lit.
+
+`notifySettings.ts` existe pour une raison de dépendances : `notify.ts` est appelé
+depuis les routes de cartes, et lui faire importer la base directement mêlerait la
+mise en forme des messages à l'accès aux données. La configuration et le type
+vivent donc du côté base, et `notify.ts` ne fait que les recevoir — sans quoi les
+deux modules s'importeraient mutuellement.
 
 ### L'image de partage
 
@@ -719,6 +876,13 @@ bout, sur un Postgres local et un vrai navigateur, avec des captures à l'appui.
 | Priorité | les trois niveaux, le classement, un glisser dans un niveau qui tient au rechargement, un glisser vers un autre niveau qui change la priorité |
 | Multi-couleur | badge, compteur borné, mention dans le total de colonne |
 | Imprimante | les deux formes de réponse et la construction de l'URL hors ligne ; puis, contre un faux OctoEverywhere servant la réponse réelle : réglages, test, bandeau, carte liée par son nom de fichier, webhook, jeton faux, secret jamais renvoyé, machine éteinte, adresse privée refusée, **redirection vers le réseau interne refusée** |
+| Avance automatique | un cycle complet piloté de l'extérieur : départ, fin, filament réel, photo — et tous les cas d'abstention : deux cartes candidates, carte refusée, impression annulée, photo humaine, interrupteur coupé |
+| Objets en plusieurs pièces | trois fichiers, trois fins : le compteur monte, le filament s'additionne, et seule la dernière classe en « Fait » |
+| Webcam et Gadget | vignette servie par notre route, `404` qui ne casse rien, pastille d'alerte |
+| Refus | badge, tri en bas, notification, annulation — et le glisser-déposer qui **tient au rechargement** malgré la nouvelle bande |
+| Attente | cumul, quantités, reclassement par priorité, carte sans durée ignorée |
+| Notifications | les trois transports, la base qui l'emporte sur l'environnement et l'inverse, la destination morte rapportée mot pour mot, le `/slack` de Discord, aucun jeton renvoyé au navigateur |
+| Le lien de l'imprimante | absent de l'API comme du HTML rendu |
 | Contraste AA dans les deux thèmes | mesure du rapport réel sur les éléments rendus |
 | Mobile | 375 / 393 / 430 px : débordement, cibles tactiles, taille des champs |
 

@@ -1,0 +1,241 @@
+'use client'
+
+import { useState } from 'react'
+import type { NotificationsView } from '@/lib/notifySettings'
+import { IconSend } from './icons'
+
+const FIELD =
+  'w-full rounded-lg border border-line bg-canvas px-3 py-2 text-sm outline-none focus:border-accent'
+
+type Résultat = { ok: true; transport: string } | { ok: false; error: string; hint?: string }
+
+/** Les trois destinations, et ce qu'il faut savoir pour chacune. */
+const TRANSPORTS = [
+  { id: 'telegram', label: 'Telegram' },
+  { id: 'ntfy', label: 'ntfy' },
+  { id: 'webhook', label: 'Discord, Slack…' },
+] as const
+
+/**
+ * Où partent les notifications.
+ *
+ * Ces réglages vivaient dans des variables d'environnement, ce qui obligeait à
+ * redéployer pour changer de destination — et le résultat observable, c'est qu'ils
+ * n'ont jamais été renseignés. Les voici là où on les cherche, avec les
+ * instructions à côté du champ concerné plutôt que dans un fichier d'exemple.
+ */
+export function NotificationSettings({ initial }: { initial: NotificationsView }) {
+  const [transport, setTransport] = useState(initial.transport ?? '')
+  const [telegramToken, setTelegramToken] = useState('')
+  const [hasTelegramToken, setHasTelegramToken] = useState(initial.hasTelegramToken)
+  const [telegramChat, setTelegramChat] = useState(initial.telegramChat ?? '')
+  const [ntfyTopic, setNtfyTopic] = useState(initial.ntfyTopic ?? '')
+  const [webhookUrl, setWebhookUrl] = useState(initial.webhookUrl ?? '')
+  const [busy, setBusy] = useState<'save' | 'test' | null>(null)
+  const [saved, setSaved] = useState(false)
+  const [résultat, setRésultat] = useState<Résultat | null>(null)
+
+  async function enregistrer(event: React.FormEvent) {
+    event.preventDefault()
+    setBusy('save')
+    setRésultat(null)
+    try {
+      const res = await fetch('/api/notifications', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          transport: transport || null,
+          telegramChat,
+          ntfyTopic,
+          webhookUrl,
+          // Champ laissé vide : on ne touche pas au jeton déjà enregistré.
+          ...(telegramToken ? { telegramToken } : {}),
+        }),
+      })
+      if (!res.ok) throw new Error('refusé')
+      const { notifications } = (await res.json()) as { notifications: NotificationsView }
+      setHasTelegramToken(notifications.hasTelegramToken)
+      setTelegramToken('')
+      setSaved(true)
+      window.setTimeout(() => setSaved(false), 2000)
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  async function tester() {
+    setBusy('test')
+    setRésultat(null)
+    try {
+      const res = await fetch('/api/notifications/test', { method: 'POST' })
+      setRésultat((await res.json()) as Résultat)
+    } catch (cause) {
+      setRésultat({ ok: false, error: cause instanceof Error ? cause.message : 'Test impossible.' })
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  return (
+    <form onSubmit={enregistrer} className="flex flex-col gap-4">
+      <div>
+        <span className="mb-1.5 block text-xs font-medium text-muted">Où prévenir</span>
+        <div className="flex gap-1.5">
+          {TRANSPORTS.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              // Recliquer coupe les notifications : c'est le moyen de dire « nulle
+              // part », sans un quatrième bouton qui n'aurait servi qu'à ça.
+              onClick={() => setTransport(transport === t.id ? '' : t.id)}
+              aria-pressed={transport === t.id}
+              data-testid={`transport-${t.id}`}
+              className={[
+                'flex-1 rounded-lg border px-2 py-2 text-xs transition-colors',
+                transport === t.id
+                  ? 'border-accent bg-accent/10 font-medium text-accent-deep'
+                  : 'border-line text-muted hover:border-accent',
+              ].join(' ')}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+        {!transport && (
+          <p className="mt-1.5 text-xs text-muted">
+            Aucune destination : l’application fonctionne, elle n’envoie simplement rien. Si des
+            variables d’environnement sont posées sur l’hébergeur, ce sont elles qui servent.
+          </p>
+        )}
+      </div>
+
+      {transport === 'telegram' && (
+        <section className="flex flex-col gap-3 rounded-lg border border-line p-3">
+          <p className="text-xs text-muted">
+            Sur Telegram, écrivez à <strong>@BotFather</strong>, envoyez <code>/newbot</code> : il
+            renvoie un jeton. Créez ensuite un groupe avec votre frère, ajoutez-y le bot, écrivez-y
+            un message, puis ouvrez <code>api.telegram.org/bot&lt;jeton&gt;/getUpdates</code> pour
+            relever l’identifiant du groupe — <strong>le signe moins en fait partie</strong>.
+          </p>
+          <div>
+            <label htmlFor="n-token" className="mb-1 block text-xs font-medium text-muted">
+              Jeton du bot{' '}
+              {hasTelegramToken && <span className="text-accent-deep">— configuré</span>}
+            </label>
+            <input
+              id="n-token"
+              type="password"
+              autoComplete="off"
+              value={telegramToken}
+              onChange={(e) => setTelegramToken(e.target.value)}
+              placeholder={
+                hasTelegramToken ? '••••••••  (laisser vide pour ne pas changer)' : '123456789:AAE…'
+              }
+              className={FIELD}
+            />
+          </div>
+          <div>
+            <label htmlFor="n-chat" className="mb-1 block text-xs font-medium text-muted">
+              Identifiant du groupe
+            </label>
+            <input
+              id="n-chat"
+              value={telegramChat}
+              onChange={(e) => setTelegramChat(e.target.value)}
+              placeholder="-100123456789"
+              spellCheck={false}
+              className={FIELD}
+            />
+          </div>
+        </section>
+      )}
+
+      {transport === 'ntfy' && (
+        <section className="rounded-lg border border-line p-3">
+          <label htmlFor="n-ntfy" className="mb-1 block text-xs font-medium text-muted">
+            Sujet ntfy
+          </label>
+          <input
+            id="n-ntfy"
+            value={ntfyTopic}
+            onChange={(e) => setNtfyTopic(e.target.value)}
+            placeholder="kanban3d-quelque-chose-de-difficile-a-deviner"
+            spellCheck={false}
+            className={FIELD}
+          />
+          <p className="mt-1.5 text-xs text-muted">
+            Aucun compte à créer : installez l’application ntfy et abonnez-vous à ce sujet.
+            Choisissez un nom difficile à deviner —{' '}
+            <strong>n’importe qui le connaissant lira vos notifications</strong>. Une URL complète
+            est acceptée pour un serveur privé.
+          </p>
+        </section>
+      )}
+
+      {transport === 'webhook' && (
+        <section className="rounded-lg border border-line p-3">
+          <label htmlFor="n-webhook" className="mb-1 block text-xs font-medium text-muted">
+            Adresse du webhook
+          </label>
+          <input
+            id="n-webhook"
+            value={webhookUrl}
+            onChange={(e) => setWebhookUrl(e.target.value)}
+            placeholder="https://discord.com/api/webhooks/…"
+            spellCheck={false}
+            className={FIELD}
+          />
+          <p className="mt-1.5 text-xs text-muted">
+            Discord, Slack, n8n, Zapier — tout ce qui accepte un POST JSON. Pour Discord, copiez
+            l’adresse depuis Paramètres du salon → Intégrations ; le <code>/slack</code> qu’elle
+            réclame est ajouté tout seul.
+          </p>
+        </section>
+      )}
+
+      <div className="flex items-center gap-2">
+        <button
+          type="submit"
+          disabled={busy !== null}
+          className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-ink disabled:opacity-40"
+        >
+          {busy === 'save' ? 'Enregistrement…' : saved ? 'Enregistré' : 'Enregistrer'}
+        </button>
+        <button
+          type="button"
+          onClick={tester}
+          disabled={busy !== null}
+          data-testid="test-notify"
+          className="inline-flex items-center gap-1.5 rounded-lg border border-line px-4 py-2 text-sm text-muted transition-colors hover:border-accent hover:text-accent disabled:opacity-40"
+        >
+          <IconSend size={15} aria-hidden />
+          {busy === 'test' ? 'Envoi…' : 'Envoyer un test'}
+        </button>
+      </div>
+
+      {résultat && (
+        <div
+          data-testid="notify-result"
+          role="status"
+          className={[
+            'rounded-lg border px-3 py-2 text-sm',
+            résultat.ok
+              ? 'border-accent/40 bg-accent/5'
+              : 'border-amber-500/40 bg-amber-500/5 text-amber-800 dark:text-amber-300',
+          ].join(' ')}
+        >
+          {résultat.ok ? (
+            <p className="font-medium">Message envoyé via {résultat.transport}. Il est arrivé ?</p>
+          ) : (
+            <>
+              <p className="font-medium">{résultat.error}</p>
+              {résultat.hint && (
+                <p className="mt-1 font-mono text-xs break-all opacity-80">{résultat.hint}</p>
+              )}
+            </>
+          )}
+        </div>
+      )}
+    </form>
+  )
+}
