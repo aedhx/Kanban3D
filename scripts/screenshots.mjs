@@ -194,6 +194,18 @@ for (const dark of [false, true]) {
   await ctx.close()
 }
 
+/* ---------- Un objet en plusieurs pièces, en cours d'assemblage ---------- */
+{
+  const { ctx, page } = await open({})
+  const carte = page.locator('li:has-text("Canon LP E6")').first()
+  await carte.waitFor({ state: 'visible', timeout: 10000 })
+  await carte.scrollIntoViewIfNeeded()
+  await page.waitForTimeout(200)
+  await carte.screenshot({ path: `${OUT}/pieces.png` })
+  console.log('  pieces.png')
+  await ctx.close()
+}
+
 /* ---------- Une demande refusée ---------- */
 {
   const { ctx, page } = await open({})

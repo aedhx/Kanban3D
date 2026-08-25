@@ -164,7 +164,13 @@ export function Column({
             {declined.map((card) => (
               <li
                 key={card.id}
-                className="rounded-xl border border-line bg-surface/50 opacity-70 transition-opacity hover:opacity-100"
+                /*
+                  Pas d'`opacity` globale ici : elle affadit aussi la raison du
+                  refus, qui est justement ce qu'on vient lire — mesuré à 3,63:1,
+                  sous le seuil AA. On tempère donc chaque élément séparément :
+                  fond en retrait, titre barré et grisé, raison à pleine force.
+                */
+                className="rounded-xl border border-line bg-canvas/60 transition-colors hover:border-accent/40"
               >
                 <button
                   type="button"
@@ -201,10 +207,12 @@ function DeclinedTile({ card }: { card: BoardCard }) {
         src={card.imageUrl}
         label={card.title}
         size={120}
-        className="h-10 w-10 shrink-0 rounded-lg border border-line object-cover text-sm grayscale"
+        className="h-10 w-10 shrink-0 rounded-lg border border-line object-cover text-sm opacity-60 grayscale"
       />
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium line-through decoration-1">{card.title}</p>
+        <p className="truncate text-sm font-medium text-muted line-through decoration-1">
+          {card.title}
+        </p>
         <p className="mt-0.5 line-clamp-2 text-xs text-amber-800 dark:text-amber-300">
           {card.declinedReason}
         </p>

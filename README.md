@@ -140,6 +140,8 @@ tableau, et la règle « trois colonnes, une liste » tient depuis le début.
 La carte compte simplement où elle en est — `1/3 pièces`, puis `2/3` — et ne part
 en « Fait » qu'à la dernière. Le filament s'additionne au fil des morceaux.
 
+![Une carte en plusieurs pièces](docs/images/pieces.png)
+
 ### Ce que la machine remarque avant nous
 
 Si **Gadget**, la surveillance par IA d'OctoEverywhere, suspecte un raté, le
