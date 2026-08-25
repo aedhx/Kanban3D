@@ -13,7 +13,7 @@ import type { BoardCard } from '@/lib/board'
 import { formatFilamentCost, printCostParts } from '@/lib/printInfo'
 import { CommentThread } from './CommentThread'
 import { PhotoField } from './PhotoField'
-import { IconClose, IconDelete, IconExternalLink } from './icons'
+import { IconClose, IconDeclined, IconDelete, IconExternalLink } from './icons'
 import { Thumbnail } from './Thumbnail'
 
 /**
@@ -79,8 +79,15 @@ export function CardPanel({
   const [filamentGrams, setFilamentGrams] = useState(numberField(card.filamentGrams))
   const [material, setMaterial] = useState(card.material ?? '')
   const [pieceCount, setPieceCount] = useState(numberField(card.pieceCount))
+  const [piecesDone, setPiecesDone] = useState(numberField(card.piecesDone))
   const [fileCount, setFileCount] = useState(numberField(card.fileCount))
   const [confirmingDelete, setConfirmingDelete] = useState(false)
+  /*
+   * Le refus. `null` quand on ne refuse pas, une chaîne quand on est en train
+   * d'écrire la raison — un refus sans motif ne servirait à personne, donc le
+   * champ précède le bouton plutôt que l'inverse.
+   */
+  const [declining, setDeclining] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [saved, setSaved] = useState(false)
   const panelRef = useRef<HTMLElement>(null)
@@ -107,7 +114,9 @@ export function CardPanel({
     setMaterial(card.material ?? '')
     setPieceCount(numberField(card.pieceCount))
     setFileCount(numberField(card.fileCount))
+    setPiecesDone(numberField(card.piecesDone))
     setConfirmingDelete(false)
+    setDeclining(null)
     setSaved(false)
     // eslint-disable-next-line react-hooks/exhaustive-deps -- volontaire, cf. ci-dessus
   }, [card.id])
@@ -155,6 +164,7 @@ export function CardPanel({
         filamentGrams: filamentGrams || null,
         material: material.trim() || null,
         pieceCount: pieceCount || null,
+        piecesDone: piecesDone || 0,
         fileCount: fileCount || null,
       })
       // On ne referme pas : le panneau doit pouvoir rester ouvert à côté du
@@ -414,6 +424,34 @@ export function CardPanel({
                   className={FIELD}
                 />
               </div>
+              {/*
+                Le compte des pièces sorties n'a de sens qu'à partir de deux
+                morceaux — et il n'apparaît qu'alors, pour ne pas ajouter un champ
+                vide à toutes les autres cartes. L'imprimante le tient à jour ; ce
+                champ est là pour la corriger.
+              */}
+              {Number(pieceCount) > 1 && (
+                <div className="w-24">
+                  <label
+                    htmlFor="m-pieces-done"
+                    className="mb-1 block text-[11px] font-medium text-muted"
+                  >
+                    Déjà faites
+                  </label>
+                  <input
+                    id="m-pieces-done"
+                    type="number"
+                    min={0}
+                    max={Number(pieceCount)}
+                    inputMode="numeric"
+                    value={piecesDone}
+                    onChange={(e) => setPiecesDone(e.target.value)}
+                    placeholder="0"
+                    className={FIELD}
+                  />
+                </div>
+              )}
+
               <div className="w-24">
                 <label
                   htmlFor="m-file-count"
@@ -461,6 +499,86 @@ export function CardPanel({
                 </button>
               ))}
             </div>
+          </fieldset>
+
+          {/*
+            Refuser, c'est répondre — pas modifier. D'où un bloc à part, hors du
+            formulaire d'édition : la raison part seule, tout de suite, et une
+            notification l'annonce.
+          */}
+          <fieldset className="mt-4">
+            <legend className="mb-1.5 text-xs font-medium text-muted">
+              {card.declinedReason ? 'Refusée' : 'Pas possible ?'}
+            </legend>
+
+            {card.declinedReason ? (
+              <div className="rounded-lg border border-amber-500/40 bg-amber-500/5 px-3 py-2">
+                <p className="text-sm text-amber-800 dark:text-amber-300">{card.declinedReason}</p>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={async () => {
+                    setBusy(true)
+                    try {
+                      await onSave(card.id, { declinedReason: null })
+                    } finally {
+                      setBusy(false)
+                    }
+                  }}
+                  className="mt-2 min-h-10 text-xs text-muted underline-offset-2 hover:text-accent hover:underline sm:min-h-0"
+                >
+                  Annuler le refus
+                </button>
+              </div>
+            ) : declining === null ? (
+              <button
+                type="button"
+                data-testid="decline"
+                onClick={() => setDeclining('')}
+                className="inline-flex min-h-10 items-center gap-1.5 rounded-lg border border-line px-3 py-2 text-sm text-muted transition-colors hover:border-amber-500 hover:text-amber-700"
+              >
+                <IconDeclined size={15} aria-hidden />
+                Refuser cette demande
+              </button>
+            ) : (
+              <div className="flex flex-col gap-2">
+                <input
+                  id="m-decline"
+                  autoFocus
+                  value={declining}
+                  onChange={(e) => setDeclining(e.target.value)}
+                  placeholder="Pourquoi ? « plus de filament noir »…"
+                  maxLength={200}
+                  className={FIELD}
+                />
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    data-testid="decline-confirm"
+                    disabled={busy || !declining.trim()}
+                    onClick={async () => {
+                      setBusy(true)
+                      try {
+                        await onSave(card.id, { declinedReason: declining.trim() })
+                        setDeclining(null)
+                      } finally {
+                        setBusy(false)
+                      }
+                    }}
+                    className="rounded-lg border border-amber-500 px-3 py-2 text-sm font-medium text-amber-700 disabled:opacity-40 dark:text-amber-300"
+                  >
+                    Refuser
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDeclining(null)}
+                    className="rounded-lg px-3 py-2 text-sm text-muted hover:text-accent"
+                  >
+                    Annuler
+                  </button>
+                </div>
+              </div>
+            )}
           </fieldset>
 
           <div className="mt-5 flex items-center gap-2">

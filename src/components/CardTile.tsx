@@ -15,6 +15,8 @@ import {
   IconPrintTime,
   IconUrgent,
   IconMultiColor,
+  IconDeclined,
+  IconEta,
 } from './icons'
 import { Thumbnail } from './Thumbnail'
 
@@ -65,11 +67,14 @@ function CardContent({
   card,
   filamentPricePerKg,
   printProgress,
+  eta,
 }: {
   card: BoardCard
   filamentPricePerKg: number | null
   /** Avancement, si c'est cette carte que la machine est en train d'imprimer. */
   printProgress?: number | null
+  /** Quand elle sera prête, si la file s'enchaîne. */
+  eta?: string | null
 }) {
   const swatch = swatchFor(card.color)
   // Une priorité n'a plus rien à dire sur une carte déjà terminée.
@@ -81,7 +86,7 @@ function CardContent({
     .filter(Boolean)
     .join(' · ')
   const timed = formatPrintTime(card.printMinutes) !== null
-  const pieces = formatPieces(card.pieceCount)
+  const pieces = formatPieces(card.pieceCount, card.piecesDone)
 
   return (
     <div className="flex gap-3 p-3">
@@ -125,6 +130,13 @@ function CardContent({
             </span>
           )}
 
+          {card.declinedReason && (
+            <span className="inline-flex items-center gap-1 rounded bg-amber-500/15 px-1.5 py-0.5 font-semibold text-amber-800 dark:text-amber-300">
+              <IconDeclined size={12} aria-hidden />
+              Refusée
+            </span>
+          )}
+
           {card.multiColor && (
             <span
               className="inline-flex items-center gap-1"
@@ -158,12 +170,33 @@ function CardContent({
               </span>
             )}
             {pieces && (
-              <span className="inline-flex items-center gap-1">
+              <span
+                className={[
+                  'inline-flex items-center gap-1',
+                  // En cours d'assemblage : c'est une information qui bouge, elle
+                  // se distingue du simple « 4 pièces » posé à la création.
+                  card.piecesDone > 0 ? 'font-medium text-accent-deep' : '',
+                ].join(' ')}
+                title={card.piecesDone > 0 ? 'Pièces déjà sorties de l’imprimante' : undefined}
+              >
                 <IconPieces size={13} aria-hidden />
                 {pieces}
               </span>
             )}
           </div>
+        )}
+
+        {/* Ce que le demandeur veut savoir : quand il l'aura. Au conditionnel —
+            l'estimation suppose que les impressions s'enchaînent. */}
+        {eta && (
+          <p
+            className="mt-1.5 inline-flex items-center gap-1 text-xs text-muted"
+            data-testid="card-eta"
+            title="Si les impressions s’enchaînent"
+          >
+            <IconEta size={13} aria-hidden />
+            {eta}
+          </p>
         )}
 
         {/* La machine imprime cette carte : on la suit ici aussi, pas seulement
@@ -183,7 +216,15 @@ function CardContent({
           </div>
         )}
 
-        {card.notes && <p className="mt-1.5 line-clamp-2 text-xs text-muted">{card.notes}</p>}
+        {/* La raison prend la place de la remarque : sur une carte refusée,
+            c'est elle qu'on vient lire. */}
+        {card.declinedReason ? (
+          <p className="mt-1.5 line-clamp-2 text-xs text-amber-800 dark:text-amber-300">
+            {card.declinedReason}
+          </p>
+        ) : (
+          card.notes && <p className="mt-1.5 line-clamp-2 text-xs text-muted">{card.notes}</p>
+        )}
       </div>
     </div>
   )
@@ -243,6 +284,7 @@ export function CardTile({
   selected = false,
   filamentPricePerKg,
   printProgress,
+  eta,
   onOpen,
   onMove,
 }: {
@@ -251,6 +293,7 @@ export function CardTile({
   selected?: boolean
   filamentPricePerKg: number | null
   printProgress?: number | null
+  eta?: string | null
   onOpen: (card: BoardCard) => void
   onMove: (card: BoardCard, status: Status) => void
 }) {
@@ -290,6 +333,7 @@ export function CardTile({
           card={card}
           filamentPricePerKg={filamentPricePerKg}
           printProgress={printProgress}
+          eta={eta}
         />
       </div>
 

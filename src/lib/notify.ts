@@ -5,10 +5,18 @@
  * notification, chacun doit penser à ouvrir l'app pour savoir que l'autre a
  * demandé ou imprimé quelque chose.
  *
- * Trois transports possibles, choisis par les variables d'environnement
- * présentes — aucune variable, aucune notification, et l'app fonctionne
- * normalement. Voir .env.example pour la configuration.
+ * Trois transports possibles — Telegram, ntfy, ou un webhook générique (Slack,
+ * Discord…). Aucun configuré, aucune notification, et l'application fonctionne
+ * normalement.
+ *
+ * **Deux sources de configuration, dans cet ordre.** La page Réglages d'abord, les
+ * variables d'environnement ensuite. C'était l'inverse — c'est-à-dire uniquement
+ * l'environnement — et le résultat observable, c'est que personne ne les a jamais
+ * renseignées : il fallait redéployer pour changer une destination. Les variables
+ * restent lues en repli pour ne pas casser en silence un déploiement qui marche.
  */
+
+import { notificationConfig, type TransportConfig } from './notifySettings'
 
 const TIMEOUT_MS = 4000
 
@@ -16,8 +24,15 @@ export type NotificationEvent =
   | { kind: 'created'; title: string; by: string; quantity: number; color: string | null }
   | { kind: 'moved'; title: string; by: string; from: string; to: string }
   | { kind: 'commented'; title: string; by: string; body: string }
+  | { kind: 'declined'; title: string; by: string; reason: string }
+  /**
+   * Ce que l'imprimante signale et qu'aucune carte ne porte : une impression
+   * échouée, ou un doute de Gadget. Un déplacement de carte couvre déjà le départ
+   * et la fin — inutile de le dire deux fois.
+   */
+  | { kind: 'printer'; text: string }
 
-type Transport = {
+export type Transport = {
   name: string
   send: (message: string) => Promise<void>
 }
@@ -39,6 +54,10 @@ function compose(event: NotificationEvent): string {
       return `📦 ${event.by} a déplacé « ${event.title} » : ${event.from} → ${event.to}`
     case 'commented':
       return `💬 ${event.by} sur « ${event.title} » : ${truncate(event.body, 200)}`
+    case 'declined':
+      return `🚫 ${event.by} ne peut pas imprimer « ${event.title} » : ${truncate(event.reason, 200)}`
+    case 'printer':
+      return event.text
   }
 }
 
@@ -51,10 +70,23 @@ function truncate(text: string, max: number): string {
 /* Transports                                                          */
 /* ------------------------------------------------------------------ */
 
-function resolveTransport(): Transport | null {
-  const telegramToken = process.env.TELEGRAM_BOT_TOKEN
-  const telegramChat = process.env.TELEGRAM_CHAT_ID
-  if (telegramToken && telegramChat) {
+/**
+ * Une URL de webhook Discord attend `/slack` à la fin pour comprendre le format
+ * qu'on envoie. L'ajouter soi-même vaut mieux que l'expliquer dans une note que
+ * personne ne lit — et c'est le piège numéro un de cette configuration.
+ */
+export function normalizeWebhookUrl(url: string): string {
+  const propre = url.trim().replace(/\/+$/, '')
+  if (!/discord(app)?\.com\/api\/webhooks\//i.test(propre)) return propre
+  return propre.endsWith('/slack') ? propre : `${propre}/slack`
+}
+
+export function resolveTransport(config: TransportConfig): Transport | null {
+  const veut = (nom: string) => config.transport === null || config.transport === nom
+
+  const telegramToken = config.telegramToken
+  const telegramChat = config.telegramChat
+  if (veut('telegram') && telegramToken && telegramChat) {
     return {
       name: 'telegram',
       send: async (message) => {
@@ -70,8 +102,8 @@ function resolveTransport(): Transport | null {
     }
   }
 
-  const ntfyTopic = process.env.NTFY_TOPIC
-  if (ntfyTopic) {
+  const ntfyTopic = config.ntfyTopic
+  if (veut('ntfy') && ntfyTopic) {
     // Un « topic » ntfy suffit : pas de compte, l'app mobile s'y abonne.
     const url = /^https?:\/\//i.test(ntfyTopic) ? ntfyTopic : `https://ntfy.sh/${ntfyTopic}`
     return {
@@ -85,14 +117,14 @@ function resolveTransport(): Transport | null {
     }
   }
 
-  const webhook = process.env.NOTIFY_WEBHOOK_URL
-  if (webhook) {
+  const webhook = config.webhookUrl
+  if (veut('webhook') && webhook) {
     // Échappatoire générique : Slack, Discord, Zapier, n8n… tous acceptent
     // un POST JSON avec un champ « text ».
     return {
       name: 'webhook',
       send: async (message) => {
-        await post(webhook, {
+        await post(normalizeWebhookUrl(webhook), {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ text: message, content: message }),
         })
@@ -128,7 +160,7 @@ async function post(url: string, init: RequestInit): Promise<void> {
  * l'utilisateur puisque l'interface applique déjà le changement sans attendre.
  */
 export async function notify(event: NotificationEvent): Promise<void> {
-  const transport = resolveTransport()
+  const transport = resolveTransport(await notificationConfig())
   if (!transport) return
 
   try {
@@ -142,6 +174,6 @@ export async function notify(event: NotificationEvent): Promise<void> {
 }
 
 /** Indique si un transport est configuré — utile pour le diagnostic. */
-export function notificationsConfigured(): boolean {
-  return resolveTransport() !== null
+export async function notificationsConfigured(): Promise<boolean> {
+  return resolveTransport(await notificationConfig()) !== null
 }

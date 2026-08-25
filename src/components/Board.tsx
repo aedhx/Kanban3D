@@ -58,9 +58,17 @@ export function Board({
    * parce qu'elle sert aussi à la carte qui imprime — et c'est le tableau qui
    * connaît les cartes.
    */
-  const [printing, setPrinting] = useState<{ fileName: string | null; progress: number } | null>(
+  const [printing, setPrinting] = useState<{
+    fileName: string | null
+    progress: number
+    timeLeftSec: number | null
+  } | null>(
     printer?.printing && printer.progress !== null
-      ? { fileName: printer.fileName, progress: printer.progress }
+      ? {
+          fileName: printer.fileName,
+          progress: printer.progress,
+          timeLeftSec: printer.timeLeftSec,
+        }
       : null,
   )
 
@@ -385,6 +393,12 @@ export function Board({
                   selectedId={editingId}
                   filamentPricePerKg={filamentPricePerKg}
                   printing={status === 'printing' ? printing : null}
+                  /*
+                    Le temps restant sur la machine, pour « À imprimer » seulement :
+                    c'est le point de départ de la file d'attente. Les deux autres
+                    colonnes n'ont personne à faire patienter.
+                  */
+                  queueStartSec={status === 'todo' ? (printing?.timeLeftSec ?? null) : null}
                   onOpen={(card) => setEditingId(card.id)}
                   onMove={moveCard}
                 />
@@ -406,7 +420,18 @@ export function Board({
           identity={identity ?? PEOPLE[0]}
           filamentPricePerKg={filamentPricePerKg}
           onClose={() => setEditingId(null)}
-          onSave={(id, changes) => patchCard(id, changes, changes as Partial<BoardCard>)}
+          /*
+            `movedBy` accompagne chaque enregistrement : le serveur ne s'en sert
+            que là où il désigne quelqu'un — un changement de colonne, un refus —
+            et sans lui le refus serait annoncé au nom du demandeur.
+          */
+          onSave={(id, changes) =>
+            patchCard(
+              id,
+              { ...changes, movedBy: identity ?? PEOPLE[0] },
+              changes as Partial<BoardCard>,
+            )
+          }
           onMove={moveCard}
           onDelete={deleteCard}
           onCommentCount={setCommentCount}

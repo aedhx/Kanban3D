@@ -6,6 +6,8 @@ import { getDb } from '@/db'
 import { printer, type Printer } from '@/db/schema'
 import { isAuthenticated } from '@/lib/auth'
 import { printerToView } from '@/lib/printerView'
+import { notificationsToView, readNotificationRow } from '@/lib/notifySettings'
+import { NotificationSettings } from '@/components/NotificationSettings'
 import { PrinterSettings } from '@/components/PrinterSettings'
 
 export const dynamic = 'force-dynamic'
@@ -17,6 +19,7 @@ const DÉFAUTS: Printer = {
   statusUrl: null,
   statusSecret: null,
   webhookToken: null,
+  autoAdvance: true,
   state: null,
   statusColor: null,
   printing: false,
@@ -28,6 +31,9 @@ const DÉFAUTS: Printer = {
   fileName: null,
   nozzleTemp: null,
   bedTemp: null,
+  gadgetStatus: null,
+  gadgetColor: null,
+  filamentUsedMg: null,
   seenAt: null,
   lastError: null,
   updatedAt: new Date(),
@@ -38,6 +44,7 @@ export default async function ReglagesPage() {
 
   const db = getDb()
   const [ligne] = await db.select().from(printer).where(eq(printer.id, 1))
+  const notifs = await readNotificationRow()
 
   /*
    * L'origine sert à afficher l'adresse complète du webhook, celle qu'on ira
@@ -80,8 +87,17 @@ export default async function ReglagesPage() {
          * est créée par la migration, mais la page ne doit pas dépendre de ça.
          */
         initial={printerToView(ligne ?? DÉFAUTS)}
+        adresse={ligne?.statusUrl ?? null}
         origin={`${protocole}://${host}`}
       />
+
+      <h2 className="mt-10 mb-1 text-sm font-semibold">Les notifications</h2>
+      <p className="mb-4 text-xs text-muted">
+        Pour être prévenu sur le téléphone quand l’autre demande, déplace ou commente une carte — et
+        quand une impression se termine ou tourne mal.
+      </p>
+
+      <NotificationSettings initial={notificationsToView(notifs)} />
     </main>
   )
 }

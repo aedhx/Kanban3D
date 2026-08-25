@@ -45,8 +45,10 @@ export function pendingCard(id: string, title: string, requestedBy: string): Boa
     material: null,
     fileCount: null,
     pieceCount: null,
+    piecesDone: 0,
     requestedBy,
     lastMovedBy: null,
+    declinedReason: null,
     doneAt: null,
     photoAt: null,
     createdAt: now,
@@ -67,6 +69,20 @@ export function toBoardCard(card: CardWithCount): BoardCard {
 }
 
 /**
+ * Bande de tri d'une carte dans « À imprimer ».
+ *
+ * C'est la priorité, sauf pour une carte refusée : elle passe sous le niveau le
+ * plus calme, donc au bas de la file. Une seule définition, deux appelants —
+ * `columnCards()` pour afficher, `resolveDrop()` pour calculer une position.
+ * Séparer les deux, c'est exactement ce qui casse le glisser-déposer : la carte
+ * reçoit une position cohérente avec ce qu'on voit, incohérente avec le tri, et
+ * revient à sa place au rechargement.
+ */
+export function bandeDe(card: { priority: Priority; declinedReason: string | null }): number {
+  return card.declinedReason ? -1 : card.priority
+}
+
+/**
  * Les cartes d'une colonne, dans l'ordre d'affichage.
  *
  * « À imprimer » se classe par priorité décroissante, puis par position : le
@@ -81,7 +97,7 @@ export function columnCards(cards: BoardCard[], status: Status): BoardCard[] {
   return cards
     .filter((card) => card.status === status)
     .sort((a, b) => {
-      if (byPriority && a.priority !== b.priority) return b.priority - a.priority
+      if (byPriority && bandeDe(a) !== bandeDe(b)) return bandeDe(b) - bandeDe(a)
       if (a.position !== b.position) return a.position - b.position
       return a.createdAt.localeCompare(b.createdAt)
     })
@@ -126,8 +142,15 @@ export function resolveDrop(
    * Sans cela, le tri la renverrait aussitôt à sa place — le déplacement
    * semblerait annulé sous l'œil, défaut classique d'une colonne triée.
    */
+  /*
+   * Une carte refusée n'est jamais une cible : elle est rendue hors de la liste
+   * triable, comme les cartes provisoires. Le repli existe quand même — refuser
+   * une carte demande une raison, ce qu'un glisser ne peut pas fournir.
+   */
   const niveau =
-    targetStatus === 'todo' && overCard ? overCard.priority : (active.priority as Priority)
+    targetStatus === 'todo' && overCard && !overCard.declinedReason
+      ? overCard.priority
+      : (active.priority as Priority)
   const changeDeNiveau = niveau !== active.priority
 
   // La carte telle qu'elle sera après le lâcher.
@@ -161,7 +184,8 @@ export function resolveDrop(
    * bornée par des cartes d'un autre niveau, et la carte reviendrait à sa place au
    * premier tri — c'est exactement le bug que ce détour évite.
    */
-  const bande = targetStatus === 'todo' ? après.filter((c) => c.priority === niveau) : après
+  const bande =
+    targetStatus === 'todo' ? après.filter((c) => bandeDe(c) === bandeDe(déplacée)) : après
   const i = bande.findIndex((card) => card.id === activeId)
 
   return {

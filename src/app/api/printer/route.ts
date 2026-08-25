@@ -5,6 +5,7 @@ import { printer, type Printer } from '@/db/schema'
 import { isAuthenticated } from '@/lib/auth'
 import { normalizeText } from '@/lib/cards'
 import { probePrinter } from '@/lib/printer'
+import { appliquerLecture } from '@/lib/printerSync'
 import { printerToView } from '@/lib/printerView'
 
 export const runtime = 'nodejs'
@@ -41,12 +42,9 @@ export async function GET() {
     const sonde = await probePrinter(ligne.statusUrl, ligne.statusSecret)
     const db = getDb()
     if (sonde.ok) {
-      const [misÀJour] = await db
-        .update(printer)
-        .set({ ...sonde.reading, seenAt: new Date(), lastError: null, updatedAt: new Date() })
-        .where(eq(printer.id, 1))
-        .returning()
-      ligne = misÀJour
+      // C'est ici que le tableau s'avance : la lecture ne se contente pas d'être
+      // rangée, elle est comparée à la précédente.
+      ligne = await appliquerLecture(ligne, sonde.reading)
     } else {
       /*
        * L'échec est enregistré mais l'ancien état est conservé : « il y a 4 min,
@@ -88,6 +86,7 @@ export async function PATCH(request: Request) {
     updates.lastError = null
     updates.printing = false
   }
+  if ('autoAdvance' in body) updates.autoAdvance = body.autoAdvance === true
   // Chaîne vide = « efface le secret », champ absent = « n'y touche pas ».
   if ('statusSecret' in body) updates.statusSecret = normalizeText(body.statusSecret, 500)
   if ('webhookToken' in body) updates.webhookToken = normalizeText(body.webhookToken, 200)

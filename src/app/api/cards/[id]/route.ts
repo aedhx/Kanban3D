@@ -61,6 +61,12 @@ export async function PATCH(request: Request, { params }: Params) {
     // Horodate l'entrée en « Fait », et l'efface si la carte en ressort : c'est
     // cette date qui décide de l'archivage.
     updates.doneAt = updates.status === 'done' ? new Date() : null
+    /*
+     * Renvoyée dans la file d'attente : le compte de pièces repart de zéro. Une
+     * carte qui remonte de « Fait » vers « À imprimer » affichant « 3/3 pièces »
+     * n'aurait aucun sens — on la refait, on recommence à compter.
+     */
+    if (updates.status === 'todo') updates.piecesDone = 0
   }
 
   // Édition des champs. `in` permet de distinguer « champ absent » (on ne
@@ -89,9 +95,30 @@ export async function PATCH(request: Request, { params }: Params) {
   if ('material' in body) updates.material = normalizeText(body.material, 40)
   if ('fileCount' in body) updates.fileCount = normalizeCount(body.fileCount, LIMITS.fileCount)
   if ('pieceCount' in body) updates.pieceCount = normalizeCount(body.pieceCount, LIMITS.pieceCount)
+  // La machine se trompera : le compte reste corrigeable à la main.
+  if ('piecesDone' in body)
+    updates.piecesDone = normalizeCount(body.piecesDone, LIMITS.piecesDone) ?? 0
+  /*
+   * Le refus. Une chaîne vide annule le refus, une raison le pose : il n'y a donc
+   * pas de refus sans motif, ce qui est tout l'intérêt du champ.
+   */
+  if ('declinedReason' in body) updates.declinedReason = normalizeText(body.declinedReason, 200)
+
+  const refusChange =
+    'declinedReason' in body && (updates.declinedReason ?? null) !== existing.declinedReason
 
   const [updated] = await db.update(cards).set(updates).where(eq(cards.id, id)).returning()
   const withCount = (await getCardWithCount(id)) ?? { ...updated, commentCount: 0 }
+
+  // Un refus se dit : c'est une réponse à une demande, pas une modification.
+  if (refusChange && updated.declinedReason) {
+    await notify({
+      kind: 'declined',
+      title: updated.title,
+      by: normalizeText(body.movedBy, 60) ?? updated.lastMovedBy ?? updated.requestedBy,
+      reason: updated.declinedReason,
+    })
+  }
 
   if (changedColumn) {
     await notify({

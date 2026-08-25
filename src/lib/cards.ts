@@ -61,6 +61,7 @@ export const LIMITS = {
   filamentGrams: 100_000, // 100 kg
   fileCount: 10_000,
   pieceCount: 10_000,
+  piecesDone: 10_000,
 } as const
 
 /** Champ texte optionnel : chaîne vide et espaces seuls deviennent null. */

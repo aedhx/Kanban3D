@@ -4,6 +4,7 @@ import { eq } from 'drizzle-orm'
 import { getDb } from '@/db'
 import { printer } from '@/db/schema'
 import { readWebhook } from '@/lib/printer'
+import { appliquerLecture } from '@/lib/printerSync'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -48,22 +49,12 @@ export async function POST(request: Request) {
   }
 
   /*
-   * On ne remplace que ce que l'événement porte : un webhook de progression ne
-   * dit rien des températures, et écraser les dernières connues par des `null`
-   * ferait clignoter le bandeau à chaque appel.
+   * Même chemin que la lecture directe, et pour une bonne raison : si chacun
+   * détectait les transitions de son côté, une impression suivie par les deux
+   * voies verrait sa carte déplacée deux fois.
    */
-  const updates: Partial<typeof printer.$inferInsert> = {
-    seenAt: new Date(),
-    lastError: null,
-    updatedAt: new Date(),
-  }
-  for (const [clé, valeur] of Object.entries(lecture)) {
-    if (valeur !== null && valeur !== undefined) {
-      Object.assign(updates, { [clé]: valeur })
-    }
-  }
-
-  await db.update(printer).set(updates).where(eq(printer.id, 1))
+  // `partiel` : un événement ne décrit qu'un changement, pas l'état entier.
+  await appliquerLecture(ligne, lecture, { partiel: true })
   return NextResponse.json({ ok: true, state: lecture.state })
 }
 

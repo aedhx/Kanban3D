@@ -16,9 +16,16 @@ export function printerToView(ligne: Printer) {
   return {
     name: ligne.name,
     configured: Boolean(ligne.statusUrl),
-    statusUrl: ligne.statusUrl,
+    /*
+     * L'adresse elle-même ne sort pas d'ici. Un « Live Link » ne demande aucune
+     * authentification : le posséder suffit à lire l'imprimante et sa webcam.
+     * C'est donc un secret comme un autre, et il n'a rien à faire dans la réponse
+     * que le tableau reçoit toutes les vingt secondes. La page de réglages, qui en
+     * a besoin pour l'afficher, va le chercher côté serveur.
+     */
     hasSecret: Boolean(ligne.statusSecret),
     hasWebhookToken: Boolean(ligne.webhookToken),
+    autoAdvance: ligne.autoAdvance,
     state: ligne.state,
     statusColor: ligne.statusColor,
     printing: ligne.printing,
@@ -30,6 +37,8 @@ export function printerToView(ligne: Printer) {
     fileName: ligne.fileName,
     nozzleTemp: ligne.nozzleTemp,
     bedTemp: ligne.bedTemp,
+    gadgetStatus: ligne.gadgetStatus,
+    gadgetColor: ligne.gadgetColor,
     seenAt: ligne.seenAt?.toISOString() ?? null,
     lastError: ligne.lastError,
   }
