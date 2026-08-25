@@ -50,6 +50,13 @@
       "when": 1787595082300,
       "tag": "0006_overrated_sprite",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1787683658717,
+      "tag": "0007_happy_ego",
+      "breakpoints": true
     }
   ]
 }

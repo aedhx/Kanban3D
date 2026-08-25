@@ -19,6 +19,8 @@ export type TransportConfig = {
   telegramChat: string | null
   ntfyTopic: string | null
   webhookUrl: string | null
+  /** Événements retenus ; `null` = tous. Voir `shouldSend()`. */
+  events: string[] | null
 }
 
 /** La configuration telle que les variables d'environnement la donnent. */
@@ -31,6 +33,8 @@ export function configFromEnv(): TransportConfig {
     telegramChat: process.env.TELEGRAM_CHAT_ID ?? null,
     ntfyTopic: process.env.NTFY_TOPIC ?? null,
     webhookUrl: process.env.NOTIFY_WEBHOOK_URL ?? null,
+    // L'environnement n'a jamais su exprimer ce choix : il prévient de tout.
+    events: null,
   }
 }
 
@@ -67,7 +71,23 @@ export async function notificationConfig(): Promise<TransportConfig> {
     telegramChat: ligne.telegramChat,
     ntfyTopic: ligne.ntfyTopic,
     webhookUrl: ligne.webhookUrl,
+    events: parseEvents(ligne.events),
   }
+}
+
+/**
+ * `NULL` → tous ; une chaîne → la liste, même vide.
+ *
+ * La distinction compte : `null` est « on n'a jamais choisi », `''` est « on a
+ * choisi de tout taire ». Les confondre ferait reparler une destination qu'on
+ * venait délibérément de faire taire.
+ */
+export function parseEvents(brut: string | null): string[] | null {
+  if (brut === null) return null
+  return brut
+    .split(',')
+    .map((v) => v.trim())
+    .filter(Boolean)
 }
 
 /** Ce que le navigateur a le droit de savoir : jamais les jetons. */
@@ -78,6 +98,7 @@ export function notificationsToView(ligne: NotificationSettings) {
     telegramChat: ligne.telegramChat,
     ntfyTopic: ligne.ntfyTopic,
     webhookUrl: ligne.webhookUrl,
+    events: parseEvents(ligne.events),
   }
 }
 

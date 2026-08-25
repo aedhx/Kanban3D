@@ -274,6 +274,15 @@ export const notifications = pgTable('notifications', {
   telegramChat: text('telegram_chat'),
   ntfyTopic: text('ntfy_topic'),
   webhookUrl: text('webhook_url'),
+  /**
+   * Les événements qui déclenchent un envoi, séparés par des virgules.
+   *
+   * `NULL` veut dire **tout**, et c'est important : c'est le comportement d'avant
+   * ce réglage, donc une base existante ne change pas de conduite et une nouvelle
+   * installation prévient de tout. Une chaîne vide, elle, veut bien dire « rien » —
+   * on peut délibérément tout taire sans supprimer la destination.
+   */
+  events: text('events'),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 })
 

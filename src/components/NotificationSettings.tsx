@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { TRIGGERS } from '@/lib/notifyEvents'
 import type { NotificationsView } from '@/lib/notifySettings'
 import { IconSend } from './icons'
 
@@ -31,6 +32,13 @@ export function NotificationSettings({ initial }: { initial: NotificationsView }
   const [telegramChat, setTelegramChat] = useState(initial.telegramChat ?? '')
   const [ntfyTopic, setNtfyTopic] = useState(initial.ntfyTopic ?? '')
   const [webhookUrl, setWebhookUrl] = useState(initial.webhookUrl ?? '')
+  /*
+   * `null` en base veut dire « tous » : on le déplie ici en une liste complète,
+   * parce qu'une case ne sait pas afficher « pas encore choisi ». Ce qui repart
+   * est donc toujours une liste explicite — et c'est très bien, à partir du moment
+   * où quelqu'un a ouvert cet écran, le choix est fait.
+   */
+  const [events, setEvents] = useState<string[]>(initial.events ?? TRIGGERS.map((t) => t.key))
   const [busy, setBusy] = useState<'save' | 'test' | null>(null)
   const [saved, setSaved] = useState(false)
   const [résultat, setRésultat] = useState<Résultat | null>(null)
@@ -45,6 +53,7 @@ export function NotificationSettings({ initial }: { initial: NotificationsView }
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           transport: transport || null,
+          events,
           telegramChat,
           ntfyTopic,
           webhookUrl,
@@ -190,6 +199,48 @@ export function NotificationSettings({ initial }: { initial: NotificationsView }
             l’adresse depuis Paramètres du salon → Intégrations ; le <code>/slack</code> qu’elle
             réclame est ajouté tout seul.
           </p>
+        </section>
+      )}
+
+      {/*
+        Ce qui déclenche un envoi. Affiché seulement quand une destination existe :
+        sans destination, la question ne se pose pas.
+      */}
+      {transport && (
+        <section className="rounded-lg border border-line p-3">
+          <p className="mb-2 text-xs font-medium text-muted">Prévenir quand…</p>
+          <div className="flex flex-col gap-1">
+            {TRIGGERS.map((t) => (
+              <label
+                key={t.key}
+                className="flex min-h-10 cursor-pointer items-center gap-2 text-sm sm:min-h-8"
+              >
+                <input
+                  type="checkbox"
+                  data-testid={`trigger-${t.key}`}
+                  checked={events.includes(t.key)}
+                  onChange={(e) =>
+                    setEvents((actuels) =>
+                      e.target.checked
+                        ? [...actuels, t.key]
+                        : actuels.filter((clé) => clé !== t.key),
+                    )
+                  }
+                  className="h-4 w-4 accent-[var(--color-accent)]"
+                />
+                {t.label}
+              </label>
+            ))}
+          </div>
+          {events.length === 0 && (
+            <p
+              className="mt-2 text-xs text-amber-800 dark:text-amber-300"
+              data-testid="aucun-evenement"
+            >
+              Aucun événement coché : plus rien ne partira. La destination reste enregistrée, et le
+              bouton de test continue de fonctionner.
+            </p>
+          )}
         </section>
       )}
 

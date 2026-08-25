@@ -215,6 +215,16 @@ service répond. C'est là qu'on se plante — un identifiant de groupe recopié
 son signe moins, un bot jamais ajouté à la conversation — et un message d'erreur
 vaut mieux qu'une notification qui n'arrive jamais.
 
+Six cases disent **ce qui mérite un message** : une demande qui arrive, une carte
+déplacée à la main, une carte que l'imprimante fait avancer toute seule, un message
+dans une discussion, un refus, un souci sur la machine. Décocher les déplacements
+de l'imprimante est le réglage le plus utile : depuis qu'elle range les cartes
+elle-même, chaque départ et chaque fin d'impression produisait un message.
+
+Tout décoché, plus rien ne part — la destination reste enregistrée, et le bouton de
+test continue de fonctionner. Une installation qui n'a jamais ouvert cet écran, elle,
+prévient de tout : ce réglage ne fait taire que ce qu'on lui demande de taire.
+
 ---
 
 ## Quand tu ne peux pas

@@ -4,6 +4,7 @@ import { getDb } from '@/db'
 import { notifications } from '@/db/schema'
 import { isAuthenticated } from '@/lib/auth'
 import { normalizeText } from '@/lib/cards'
+import { TRIGGER_KEYS } from '@/lib/notifyEvents'
 import { notificationsToView, readNotificationRow } from '@/lib/notifySettings'
 
 export const runtime = 'nodejs'
@@ -54,6 +55,27 @@ export async function PATCH(request: Request) {
   if ('telegramChat' in body) updates.telegramChat = normalizeText(body.telegramChat, 60)
   if ('ntfyTopic' in body) updates.ntfyTopic = normalizeText(body.ntfyTopic, 200)
   if ('webhookUrl' in body) updates.webhookUrl = normalizeText(body.webhookUrl, 500)
+
+  /*
+   * Les événements retenus. `null` rend le choix — donc « tous » ; un tableau,
+   * même vide, l'exprime. Une clé inconnue est refusée plutôt qu'ignorée : sans
+   * quoi une faute de frappe ferait taire un événement en silence, exactement ce
+   * que ce réglage est censé rendre visible.
+   */
+  if ('events' in body) {
+    if (body.events === null) {
+      updates.events = null
+    } else if (Array.isArray(body.events)) {
+      const clés = body.events.map(String)
+      const inconnue = clés.find((clé) => !TRIGGER_KEYS.includes(clé))
+      if (inconnue) {
+        return NextResponse.json({ error: `Événement inconnu : ${inconnue}.` }, { status: 400 })
+      }
+      updates.events = [...new Set(clés)].join(',')
+    } else {
+      return NextResponse.json({ error: 'Événements invalides.' }, { status: 400 })
+    }
+  }
 
   const [ligne] = await getDb()
     .update(notifications)
