@@ -16,21 +16,12 @@
  * restent lues en repli pour ne pas casser en silence un déploiement qui marche.
  */
 
+import { shouldSend, type NotificationEvent } from './notifyEvents'
 import { notificationConfig, type TransportConfig } from './notifySettings'
 
-const TIMEOUT_MS = 4000
+export type { NotificationEvent }
 
-export type NotificationEvent =
-  | { kind: 'created'; title: string; by: string; quantity: number; color: string | null }
-  | { kind: 'moved'; title: string; by: string; from: string; to: string }
-  | { kind: 'commented'; title: string; by: string; body: string }
-  | { kind: 'declined'; title: string; by: string; reason: string }
-  /**
-   * Ce que l'imprimante signale et qu'aucune carte ne porte : une impression
-   * échouée, ou un doute de Gadget. Un déplacement de carte couvre déjà le départ
-   * et la fin — inutile de le dire deux fois.
-   */
-  | { kind: 'printer'; text: string }
+const TIMEOUT_MS = 4000
 
 export type Transport = {
   name: string
@@ -160,7 +151,10 @@ async function post(url: string, init: RequestInit): Promise<void> {
  * l'utilisateur puisque l'interface applique déjà le changement sans attendre.
  */
 export async function notify(event: NotificationEvent): Promise<void> {
-  const transport = resolveTransport(await notificationConfig())
+  const config = await notificationConfig()
+  if (!shouldSend(event, config.events)) return
+
+  const transport = resolveTransport(config)
   if (!transport) return
 
   try {

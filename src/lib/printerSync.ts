@@ -239,6 +239,8 @@ async function déplacer(
 
   await notify({
     kind: 'moved',
+    // C'est la machine qui décide, pas une main : ça se tait séparément.
+    byPrinter: true,
     title: carte.title,
     by: parQui,
     from: STATUS_LABELS[carte.status as keyof typeof STATUS_LABELS] ?? carte.status,

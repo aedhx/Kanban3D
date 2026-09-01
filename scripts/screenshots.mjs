@@ -292,6 +292,15 @@ if (process.env.PRINTER_DEMO_URL) {
    */
   await page.locator('[data-testid="transport-telegram"]').click()
   await page.waitForTimeout(300)
+  /*
+   * Les six cases, toutes cochées : c'est l'état par défaut, et la capture doit
+   * le montrer plutôt que l'état de la base du moment. On coche dans le
+   * formulaire sans l'enregistrer — ce script ne modifie jamais les réglages.
+   */
+  for (const clé of ['created', 'moved', 'printerMoved', 'commented', 'declined', 'printer']) {
+    await page.locator(`[data-testid="trigger-${clé}"]`).check()
+  }
+  await page.waitForTimeout(200)
   const bloc = page.locator('form').nth(1)
   await bloc.scrollIntoViewIfNeeded()
   await page.waitForTimeout(200)

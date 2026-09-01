@@ -189,6 +189,7 @@ src/
     printerSync.ts               les transitions, et le tableau qui s'avance tout seul
     printerView.ts               ce que le navigateur a le droit de savoir de la machine
     notifySettings.ts            d'où vient la configuration des notifications
+    notifyEvents.ts              les six déclencheurs, et le filtre — sans base
     printInfo.ts                 mise en forme des durées, poids, prix, totaux
     photo.ts                     redimensionnement dans le navigateur
     board.ts  cards.ts           positions, déplacements, nettoyage des saisies
@@ -727,6 +728,48 @@ mise en forme des messages à l'accès aux données. La configuration et le type
 vivent donc du côté base, et `notify.ts` ne fait que les recevoir — sans quoi les
 deux modules s'importeraient mutuellement.
 
+### Choisir ce qui déclenche un message
+
+Six cases dans les réglages, une par message. Le besoin est né de l'avance
+automatique : depuis que la machine range les cartes, chaque départ et chaque fin
+d'impression produit un déplacement, donc un message. Ce sont précisément ceux
+qu'on veut pouvoir taire — ou garder seuls.
+
+`moved` s'est dédoublé pour ça. L'événement reste un déplacement, mais
+`byPrinter: true` (posé par `déplacer()` dans `printerSync.ts`, le seul endroit qui
+déplace une carte au nom de la machine) le fait tomber sous la clé `printerMoved` :
+« Alexandre a déplacé » et « l'imprimante a déplacé » ne se taisent pas pour les
+mêmes raisons.
+
+La colonne `notifications.events` stocke les clés retenues, séparées par des
+virgules, avec **une distinction qui porte tout le réglage** :
+
+> `NULL` veut dire « tous », `''` veut dire « aucun ».
+
+`NULL` est l'état d'une base qui n'a jamais vu cet écran : elle continue donc de
+tout notifier, et une installation neuve aussi. Confondre les deux ferait reparler
+une destination qu'on venait délibérément de faire taire — ou, dans l'autre sens,
+laisserait une colonne vide couper les notifications en silence, le piège déjà
+rencontré avec les variables d'environnement. `parseEvents()` tient cette
+distinction, `shouldSend()` en vit.
+
+L'API refuse une clé inconnue au lieu de l'ignorer : sans ça une faute de frappe
+ferait taire un événement sans rien dire, exactement ce que ce réglage est censé
+rendre visible.
+
+**`notifyEvents.ts` n'a aucune dépendance, et c'est le sujet.** La table `TRIGGERS`
+sert deux fois — le filtre côté serveur, les cases côté navigateur — parce qu'en
+tenir deux reviendrait à ce qu'un jour l'une propose de taire ce que l'autre ne
+sait pas taire. Mais la sortir de `notify.ts` n'est pas cosmétique : `notify.ts`
+importe `notifySettings.ts`, donc la base, donc le pilote Postgres. Un composant
+client qui l'importe fait échouer la construction sur `Can't resolve 'net'` — vu en
+développement, et confirmé par `npm run build`. Les événements et leurs clés vivent
+donc dans un module feuille, que les deux côtés peuvent lire.
+
+Le bouton « Envoyer un test » ne passe pas par le filtre : il éprouve la
+destination, pas le choix des événements. Tout décocher laisse donc un test qui
+marche et une application silencieuse — ce que l'écran dit en toutes lettres.
+
 ### L'image de partage
 
 `public/og.png` (1200×630), déclarée dans `src/app/layout.tsx` et régénérée par
@@ -882,9 +925,10 @@ bout, sur un Postgres local et un vrai navigateur, avec des captures à l'appui.
 | Refus | badge, tri en bas, notification, annulation — et le glisser-déposer qui **tient au rechargement** malgré la nouvelle bande |
 | Attente | cumul, quantités, reclassement par priorité, carte sans durée ignorée |
 | Notifications | les trois transports, la base qui l'emporte sur l'environnement et l'inverse, la destination morte rapportée mot pour mot, le `/slack` de Discord, aucun jeton renvoyé au navigateur |
+| Le choix des déclencheurs | hors ligne : la clé de chacun des six événements, `moved` avec et sans `byPrinter`, et le filtre (`null` tout, liste vide rien, liste partielle ce qu'il faut) ; de bout en bout : `moved` décoché tait la main mais pas le refus, `printerMoved` décoché laisse la machine avancer les cartes en silence tandis qu'un incident parle encore, rien de coché ne laisse partir que le test, une clé inconnue refusée en 400, et l'écran qui relit son état au rechargement |
 | Le lien de l'imprimante | absent de l'API comme du HTML rendu |
 | Contraste AA dans les deux thèmes | mesure du rapport réel sur les éléments rendus |
-| Mobile | 375 / 393 / 430 px : débordement, cibles tactiles, taille des champs |
+| Mobile | 375 / 393 / 430 px : débordement, cibles tactiles, taille des champs — tableau et page de réglages |
 
 Les scripts de captures (`scripts/screenshots.mjs`) servent aussi de vérification
 visuelle : ils passent par l'interface, pas par la base.
