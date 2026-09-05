@@ -715,6 +715,14 @@ repos qu'on veut regarder le plateau ; le rythme suit — 10 s en impression, 60
 repos, 2 min après un échec, pour ne pas interroger le NAS toutes les minutes quand
 il n'y a pas de caméra.
 
+Elle n'est plus réservée aux grands écrans non plus. Elle y était masquée
+(`hidden sm:block`) du temps où elle ne montrait rien : de la place perdue. Le
+téléphone en portrait est pourtant l'écran depuis lequel on regarde le plateau.
+Les deux commandes du bandeau ont dû sortir du flux de texte pour ça — dans le
+flux, elles se repliaient sur une ligne à elles dès que le texte en occupait
+plusieurs, et creusaient un vide au milieu du bandeau. Elles sont maintenant
+calées en haut à droite, ce qui rend aussi la version large plus lisible.
+
 ### Refuser, sans quatrième colonne
 
 `cards.declined_reason`. Une carte refusée reste où elle est, grisée, et **sort de

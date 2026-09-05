@@ -95,11 +95,6 @@ export function PrinterStrip({
   }, [onPrinting])
 
   /*
-   * La vignette se rafraîchit avec le reste. On ne la demande que pendant une
-   * impression : au repos elle montrerait un plateau vide, et interroger le NAS
-   * pour ça n'a pas de sens.
-   */
-  /*
    * Le rythme de l'aperçu fixe, du plus soutenu au plus économe. Un échec ne
    * masque la vignette que jusqu'au prochain essai : une caméra qui revient — le
    * NAS qu'on rallume — se remet à s'afficher toute seule.
@@ -227,7 +222,14 @@ export function PrinterStrip({
             }}
             data-testid="webcam"
             aria-label="Voir la webcam en direct"
-            className="hidden shrink-0 overflow-hidden rounded border border-line sm:block"
+            /*
+              Visible sur téléphone aussi. Elle y était masquée du temps où elle
+              ne montrait rien — l'aperçu d'OctoEverywhere répondait 404 — et
+              c'était donc de la place perdue. Maintenant qu'il y a une image, le
+              téléphone est justement l'écran depuis lequel on veut jeter un œil
+              au plateau. Un peu plus petite en portrait, où la largeur compte.
+            */
+            className="block shrink-0 overflow-hidden rounded border border-line"
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
@@ -235,7 +237,7 @@ export function PrinterStrip({
               alt=""
               width={96}
               height={72}
-              className="h-[54px] w-[72px] object-cover"
+              className="h-[44px] w-[59px] object-cover sm:h-[54px] sm:w-[72px]"
               onLoad={() => setÉchec(false)}
               onError={() => {
                 setSnapshot(null)
@@ -283,7 +285,15 @@ export function PrinterStrip({
               injoignable
             </span>
           )}
+        </div>
 
+        {/*
+          Les deux commandes, calées en haut à droite plutôt qu'au bout du texte.
+          Dans le flux, elles se repliaient sur une ligne à elles dès que le texte
+          en occupait plusieurs — c'est-à-dire sur un téléphone en portrait — et
+          creusaient un vide au milieu du bandeau.
+        */}
+        <div className="flex shrink-0 items-center gap-0.5">
           {/*
             Chez OctoEverywhere : leur lecteur, leur bande passante, et tout ce
             que le nôtre ne montre pas — les commandes, l'historique. Le lien
@@ -301,7 +311,7 @@ export function PrinterStrip({
                 qu'une icône de 14 px — mesurée à 22 px de large, sous le seuil
                 que le reste du tableau respecte.
               */
-              className="ml-auto inline-flex min-h-10 min-w-10 shrink-0 items-center justify-center gap-1 rounded px-1 text-muted transition-colors hover:text-accent sm:min-h-6 sm:min-w-0"
+              className="inline-flex min-h-10 min-w-10 items-center justify-center gap-1 rounded text-muted transition-colors hover:text-accent sm:min-h-6 sm:min-w-0 sm:px-1"
             >
               <IconExternalLink size={14} aria-hidden />
               <span className="hidden sm:inline">OctoEverywhere</span>
@@ -311,10 +321,7 @@ export function PrinterStrip({
           <a
             href="/reglages"
             aria-label="Réglages de l’imprimante"
-            className={[
-              'inline-flex min-h-10 min-w-10 shrink-0 items-center justify-center rounded text-muted transition-colors hover:text-accent sm:min-h-6 sm:min-w-6',
-              printer.hasSharePage ? '' : 'ml-auto',
-            ].join(' ')}
+            className="inline-flex min-h-10 min-w-10 items-center justify-center rounded text-muted transition-colors hover:text-accent sm:min-h-6 sm:min-w-6"
           >
             <IconSettings size={14} aria-hidden />
           </a>

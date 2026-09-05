@@ -149,10 +149,11 @@ bandeau le dit.
 
 ### Regarder l'impression
 
-Une vignette de la webcam dans le bandeau, et un clic l'ouvre **en direct** —
-la vraie vidéo, pas un diaporama. Elle est là aussi quand la machine ne travaille
-pas : en chauffe, en pause, ou simplement pour vérifier que le plateau est libre
-avant de lancer quelque chose.
+Une vignette de la webcam dans le bandeau, **y compris sur téléphone en
+portrait** — c'est justement l'écran depuis lequel on veut jeter un œil au
+plateau. Un clic l'ouvre **en direct** : la vraie vidéo, pas un diaporama. Elle
+est là aussi quand la machine ne travaille pas : en chauffe, en pause, ou
+simplement pour vérifier que le plateau est libre avant de lancer quelque chose.
 
 Un bouton mène chez OctoEverywhere pour le reste — leur lecteur, l'historique,
 les commandes.
