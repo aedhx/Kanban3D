@@ -158,6 +158,11 @@ simplement pour vérifier que le plateau est libre avant de lancer quelque chose
 Un bouton mène chez OctoEverywhere pour le reste — leur lecteur, l'historique,
 les commandes.
 
+Quand la caméra ne répond pas — NAS éteint, imprimante débranchée du compagnon,
+partage sans caméra — la vignette ne s'évanouit pas en silence : elle laisse une
+case barrée qui mène à l'explication. Une image qui disparaît sans rien dire fait
+douter de l'application.
+
 Le flux passe par l'application. C'est délibéré : le *Live Link* ne demande aucun
 mot de passe, donc le poser dans la page reviendrait à le donner à quiconque
 l'ouvre. Il ne quitte pas le serveur, et le bouton ne le révèle qu'au moment du

@@ -715,6 +715,36 @@ repos qu'on veut regarder le plateau ; le rythme suit — 10 s en impression, 60
 repos, 2 min après un échec, pour ne pas interroger le NAS toutes les minutes quand
 il n'y a pas de caméra.
 
+### Ce qu'une « Shared Connection » sait faire
+
+Le partage de connexion (`shared-<jeton>.octoeverywhere.com`) était accepté mais
+jamais éprouvé — « acceptée, mais non vérifiée », disait l'en-tête. Interrogé sur
+un vrai partage, il s'avère **proxifier l'interface web de l'imprimante**, et il
+en donne plus que le Live Link :
+
+| | Live Link | Shared Connection |
+| --- | --- | --- |
+| Aperçu fixe | `404` en pratique | **répond**, 40 Ko |
+| Flux vidéo | répond | **répond** |
+| Numéro de couche | absent | **présent** (`275/562`) |
+| Température de chambre | absente | présente |
+| État en toutes lettres, couleur | présents | non — juste `printing` |
+| Gadget | libellé et couleur | un score brut |
+| Image de fin d'impression | possible | absente |
+
+Les deux adresses ne racontent donc pas la même histoire, et aucune n'est
+strictement meilleure. Ce qui est traité ici : `snapshotEndpoint()`,
+`streamEndpoint()` et `sharePageUrl()` savent désormais les deux formes, si bien
+qu'un partage de connexion donne la vignette, la vidéo et le bouton, exactement
+comme un Live Link.
+
+La forme est reconnue **à ce qu'on sait en déduire**, pas au nom d'hôte :
+`shared-<jeton>.octoeverywhere.com` est la forme d'aujourd'hui, et s'y lier nous
+ferait rater celle de demain. Le jeton vit dans le sous-domaine — c'est donc un
+sésame au même titre qu'un Live Link, et il ne quitte pas plus le serveur.
+
+### La vignette sur téléphone
+
 Elle n'est plus réservée aux grands écrans non plus. Elle y était masquée
 (`hidden sm:block`) du temps où elle ne montrait rien : de la place perdue. Le
 téléphone en portrait est pourtant l'écran depuis lequel on regarde le plateau.
@@ -1069,6 +1099,8 @@ bout, sur un Postgres local et un vrai navigateur, avec des captures à l'appui.
 | La caméra | contre la **vraie** imprimante : une image tirée du flux, la vignette du bandeau, la vidéo en grand qui change à l'écran, la redirection ; hors ligne, contre un faux service MJPEG : le relais, l'absence de caméra, et le repli sur l'aperçu quand le flux est coupé |
 | Plusieurs destinations | deux destinations aux filtres différents — un événement, une seule reçoit ; une destination injoignable qui ne fait pas taire l'autre ; le test, la création et la suppression par destination ; le jeton jamais renvoyé ; table vide, l'environnement reprend la main |
 | Les photos de discussion | l'envoi depuis l'écran, la vignette relue au rechargement, la route qui sert l'image avec son cache, une URL qui se trompe de carte refusée, une photo sans texte, la suppression en cascade — et, hors ligne, ce que chaque transport ferait de l'image |
+| La « Shared Connection » | contre le **vrai** partage : l'état avec ses couches, l'aperçu, le flux relayé, la vignette dans le bandeau, et le jeton absent du HTML comme de l'API |
+| L'absence de caméra | la case barrée qui remplace la vignette, la fenêtre qui explique au lieu d'afficher une image cassée, la caméra qui revient, et le silence quand aucune caméra n'est promise |
 | Le lien de l'imprimante | absent de l'API comme du HTML rendu |
 | Contraste AA dans les deux thèmes | mesure du rapport réel sur les éléments rendus |
 | Mobile | 375 / 393 / 430 px : débordement, cibles tactiles, taille des champs — tableau et page de réglages |
