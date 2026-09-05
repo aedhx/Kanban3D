@@ -8,6 +8,8 @@
  * ATTENTION : commence par supprimer toutes les cartes existantes. À réserver à
  * une base locale.
  */
+import { existsSync, readFileSync } from 'node:fs'
+
 const BASE = process.env.BASE_URL ?? 'http://127.0.0.1:3100'
 const PIN = process.env.APP_PIN ?? '4242'
 
@@ -150,5 +152,26 @@ if (skadis) {
     headers: H,
     body: JSON.stringify({ body: 'Oui, noir c’est mieux. Merci !', author: 'Antoine' }),
   })
-  console.log('Deux messages ajoutés sur « ' + skadis.title + ' »')
+
+  /*
+   * Un message avec photo, s'il y a une image sous la main. C'est le cas d'usage
+   * qui a demandé cette fonctionnalité — montrer plutôt que décrire — et la
+   * capture du README doit le donner à voir. Sans image disponible, on s'en passe :
+   * ce script doit rester lançable n'importe où.
+   */
+  const source = process.env.DEMO_PHOTO
+  if (source && existsSync(source)) {
+    const formulaire = new FormData()
+    formulaire.set('body', 'Le premier essai a décollé dans ce coin-là.')
+    formulaire.set('author', 'Alexandre')
+    formulaire.set('photo', new Blob([readFileSync(source)], { type: 'image/jpeg' }), 'photo.jpg')
+    await fetch(`${BASE}/api/cards/${skadis.id}/comments`, {
+      method: 'POST',
+      headers: { cookie: H.cookie },
+      body: formulaire,
+    })
+    console.log('Trois messages ajoutés sur « ' + skadis.title + ' », dont un avec photo')
+  } else {
+    console.log('Deux messages ajoutés sur « ' + skadis.title + ' »')
+  }
 }

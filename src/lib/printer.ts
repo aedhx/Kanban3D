@@ -54,6 +54,17 @@ const LIVE_STATUS_PATH = '/api/live/status'
 const COMMAND_STATUS_PATH = '/octoeverywhere-command-api/status'
 
 /**
+ * L'aperçu et le flux d'une « Shared Connection ».
+ *
+ * Relevés sur le lien réel : contrairement au Live Link, dont l'aperçu CDN
+ * répond `404`, ces deux-là répondent — 42 Ko de JPEG et du MJPEG sur la même
+ * frontière `oestreamboundary`. Un partage de connexion proxifie en fait
+ * l'interface web de l'imprimante, caméra comprise.
+ */
+const COMMAND_SNAPSHOT_PATH = '/octoeverywhere-command-api/webcam/snapshot'
+const COMMAND_STREAM_PATH = '/octoeverywhere-command-api/webcam/stream'
+
+/**
  * L'aperçu de la webcam. Servi par le CDN d'OctoEverywhere, sans authentification
  * — c'est la même adresse que la page de partage met dans sa propre balise
  * `og:image`. Elle répond 404 quand la machine est déconnectée ou n'a pas de
@@ -241,13 +252,42 @@ export function statusEndpoint(raw: string): URL | null {
  */
 export function snapshotEndpoint(raw: string): URL | null {
   const partagé = lienPartagé(raw.trim())
-  return partagé ? urlLive(LIVE_SNAPSHOT_PATH, partagé) : null
+  if (partagé) return urlLive(LIVE_SNAPSHOT_PATH, partagé)
+  return urlPartageConnexion(raw, COMMAND_SNAPSHOT_PATH)
 }
 
-/** Le flux vidéo, pour la même adresse. Rien non plus pour une Shared Connection. */
+/** Le flux vidéo, pour la même adresse. */
 export function streamEndpoint(raw: string): URL | null {
   const partagé = lienPartagé(raw.trim())
-  return partagé ? urlLive(LIVE_STREAM_PATH, partagé) : null
+  if (partagé) return urlLive(LIVE_STREAM_PATH, partagé)
+  return urlPartageConnexion(raw, COMMAND_STREAM_PATH)
+}
+
+/**
+ * La racine d'une « Shared Connection », si c'en est une.
+ *
+ * On la reconnaît à ce qu'elle est : une adresse dont on sait déduire l'API de
+ * commande. Pas à son nom d'hôte — `shared-<jeton>.octoeverywhere.com` est la
+ * forme d'aujourd'hui, et se lier à elle nous ferait rater celle de demain.
+ */
+function racinePartageConnexion(raw: string): URL | null {
+  const saisi = raw.trim()
+  if (!saisi || lienPartagé(saisi)) return null
+  let url: URL
+  try {
+    url = new URL(saisi)
+  } catch {
+    return null
+  }
+  // On remonte à la racine, que l'adresse saisie pointe déjà sur l'API ou non.
+  const chemin = url.pathname.toLowerCase()
+  if (chemin !== '/' && !chemin.startsWith('/octoeverywhere-command-api')) return null
+  return new URL(url.origin)
+}
+
+function urlPartageConnexion(raw: string, chemin: string): URL | null {
+  const racine = racinePartageConnexion(raw)
+  return racine ? new URL(`${racine.origin}${chemin}`) : null
 }
 
 /**
@@ -260,9 +300,13 @@ export function streamEndpoint(raw: string): URL | null {
  */
 export function sharePageUrl(raw: string): URL | null {
   const partagé = lienPartagé(raw.trim())
-  if (!partagé) return null
-  const type = partagé.id.startsWith('.') ? 'view' : 'live'
-  return new URL(`${partagé.origine}/${type}/${partagé.id.slice(1)}`)
+  if (partagé) {
+    const type = partagé.id.startsWith('.') ? 'view' : 'live'
+    return new URL(`${partagé.origine}/${type}/${partagé.id.slice(1)}`)
+  }
+  // Une « Shared Connection » a aussi sa page : l'interface de l'imprimante
+  // elle-même, que le partage proxifie.
+  return racinePartageConnexion(raw)
 }
 
 function urlLive(chemin: string, { id, origine }: { id: string; origine: string }): URL {

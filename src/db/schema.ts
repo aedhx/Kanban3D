@@ -160,10 +160,35 @@ export const comments = pgTable(
       .references(() => cards.id, { onDelete: 'cascade' }),
     author: text('author').notNull(),
     body: text('body').notNull(),
+    /**
+     * Date de la photo jointe, ou `NULL`. Même rôle que `cards.photo_at` : le fil
+     * dit qu'il y a une image sans transporter ses octets, et le navigateur va la
+     * chercher par son URL.
+     */
+    photoAt: timestamp('photo_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [index('comments_card_id_idx').on(table.cardId)],
 )
+
+/**
+ * La photo jointe à un message.
+ *
+ * Table à part et clé primaire sur le message, exactement comme `card_photos` :
+ * le fil se recharge à chaque ouverture du panneau, et y transporter les octets
+ * coûterait des mégaoctets pour des images qu'on ne regarde qu'une fois.
+ *
+ * Une photo par message. Envoyer une deuxième image, c'est envoyer un deuxième
+ * message — ce qui est aussi la façon dont on raconte quelque chose.
+ */
+export const commentPhotos = pgTable('comment_photos', {
+  commentId: uuid('comment_id')
+    .primaryKey()
+    .references(() => comments.id, { onDelete: 'cascade' }),
+  mime: text('mime').notNull(),
+  bytes: bytea('bytes').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+})
 
 /**
  * La photo de ce qui est sorti de l'imprimante.

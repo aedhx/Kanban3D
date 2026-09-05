@@ -16,7 +16,18 @@ export type NotificationEvent =
    * ceux de la machine annoncent qu'une impression a commencé ou fini.
    */
   | { kind: 'moved'; title: string; by: string; from: string; to: string; byPrinter?: boolean }
-  | { kind: 'commented'; title: string; by: string; body: string }
+  /**
+   * `photo` voyage avec l'événement plutôt que sous forme d'URL : l'application
+   * est derrière un code, donc un lien vers l'image reviendrait à envoyer à
+   * Discord une adresse qu'il ne peut pas ouvrir. Les octets, eux, passent.
+   */
+  | {
+      kind: 'commented'
+      title: string
+      by: string
+      body: string
+      photo?: { mime: string; bytes: Buffer }
+    }
   | { kind: 'declined'; title: string; by: string; reason: string }
   /**
    * Ce que l'imprimante signale et qu'aucune carte ne porte : une impression

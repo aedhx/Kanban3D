@@ -28,6 +28,7 @@ export {
   PuzzlePiece as IconPieces,
   Trash as IconDelete,
   UserSwitch as IconIdentity,
+  VideoCameraSlash as IconNoCamera,
   Warning as IconUrgent,
   X as IconClose,
 } from '@phosphor-icons/react'

@@ -159,7 +159,8 @@ src/
     login/page.tsx               l'écran du code
     api/cards/route.ts           GET la liste · POST une carte (résout le lien)
     api/cards/[id]/route.ts      PATCH modifier ou déplacer · DELETE
-    api/cards/[id]/comments/     le fil de discussion
+    api/cards/[id]/comments/     le fil de discussion (POST accepte une photo)
+    api/cards/[id]/comments/[commentId]/photo/  la photo jointe à un message
     api/cards/[id]/photo/        la photo du résultat (octets, hors du tableau)
     api/auth/route.ts            POST le code -> cookie signé
     api/printer/route.ts         GET le dernier état (rafraîchi si > 20 s) · PATCH la config
@@ -714,6 +715,44 @@ repos qu'on veut regarder le plateau ; le rythme suit — 10 s en impression, 60
 repos, 2 min après un échec, pour ne pas interroger le NAS toutes les minutes quand
 il n'y a pas de caméra.
 
+### Ce qu'une « Shared Connection » sait faire
+
+Le partage de connexion (`shared-<jeton>.octoeverywhere.com`) était accepté mais
+jamais éprouvé — « acceptée, mais non vérifiée », disait l'en-tête. Interrogé sur
+un vrai partage, il s'avère **proxifier l'interface web de l'imprimante**, et il
+en donne plus que le Live Link :
+
+| | Live Link | Shared Connection |
+| --- | --- | --- |
+| Aperçu fixe | `404` en pratique | **répond**, 40 Ko |
+| Flux vidéo | répond | **répond** |
+| Numéro de couche | absent | **présent** (`275/562`) |
+| Température de chambre | absente | présente |
+| État en toutes lettres, couleur | présents | non — juste `printing` |
+| Gadget | libellé et couleur | un score brut |
+| Image de fin d'impression | possible | absente |
+
+Les deux adresses ne racontent donc pas la même histoire, et aucune n'est
+strictement meilleure. Ce qui est traité ici : `snapshotEndpoint()`,
+`streamEndpoint()` et `sharePageUrl()` savent désormais les deux formes, si bien
+qu'un partage de connexion donne la vignette, la vidéo et le bouton, exactement
+comme un Live Link.
+
+La forme est reconnue **à ce qu'on sait en déduire**, pas au nom d'hôte :
+`shared-<jeton>.octoeverywhere.com` est la forme d'aujourd'hui, et s'y lier nous
+ferait rater celle de demain. Le jeton vit dans le sous-domaine — c'est donc un
+sésame au même titre qu'un Live Link, et il ne quitte pas plus le serveur.
+
+### La vignette sur téléphone
+
+Elle n'est plus réservée aux grands écrans non plus. Elle y était masquée
+(`hidden sm:block`) du temps où elle ne montrait rien : de la place perdue. Le
+téléphone en portrait est pourtant l'écran depuis lequel on regarde le plateau.
+Les deux commandes du bandeau ont dû sortir du flux de texte pour ça — dans le
+flux, elles se repliaient sur une ligne à elles dès que le texte en occupait
+plusieurs, et creusaient un vide au milieu du bandeau. Elles sont maintenant
+calées en haut à droite, ce qui rend aussi la version large plus lisible.
+
 ### Refuser, sans quatrième colonne
 
 `cards.declined_reason`. Une carte refusée reste où elle est, grisée, et **sort de
@@ -819,6 +858,53 @@ donc dans un module feuille, que les deux côtés peuvent lire.
 Le bouton « Envoyer un test » ne passe pas par le filtre : il éprouve la
 destination, pas le choix des événements. Tout décocher laisse donc un test qui
 marche et une application silencieuse — ce que l'écran dit en toutes lettres.
+
+### Une photo dans la discussion
+
+`comment_photos`, clé primaire sur le message, exactement comme `card_photos` :
+le fil ne transporte que `photo_at`, et le navigateur va chercher l'image par son
+URL. Une photo par message ; en envoyer une deuxième, c'est envoyer un deuxième
+message, ce qui est aussi la façon dont on raconte quelque chose.
+
+**L'envoi est en une seule requête.** La route accepte du multipart en plus du
+JSON qu'elle recevait déjà, et c'est ce qui a décidé de la forme : découper en
+« crée le message » puis « attache la photo » aurait fait partir la notification
+avant l'image — ou pas du tout, si le second appel échouait.
+
+L'URL de l'image nomme **et** la carte **et** le message, et la route vérifie les
+deux par une jointure, alors que l'identifiant du message suffirait. C'est voulu :
+une adresse qui ment sur l'une des deux ne doit pas répondre.
+
+Avec une photo, le texte devient facultatif — d'où un message vide en base plutôt
+qu'une colonne nullable, ce que l'écran traduit par « X a envoyé une photo ».
+
+#### La photo qui suit la notification
+
+`Transport` gagne un `sendImage` **optionnel**, et c'est l'optionalité qui porte
+le dessin : une destination qui ne sait pas recevoir de fichier n'a rien à
+déclarer, l'appelant retombe sur `send()`, et le message annonce la photo (`📷`)
+au lieu de la passer sous silence.
+
+| Destination | Comment l'image part |
+| --- | --- |
+| Telegram | `sendPhoto`, en multipart, le message en légende |
+| ntfy | les octets en corps, `Filename` posé, le texte dans l'en-tête `Message` |
+| Discord | multipart `payload_json` + `files[0]`, **sur le point d'entrée natif** |
+| Slack, n8n, Zapier… | pas de `sendImage` : le texte seul, avec son `📷` |
+
+Deux détails qui se seraient vengés plus tard :
+
+- **Discord doit perdre son `/slack`.** Ce suffixe lui fait comprendre le format
+  de message qu'on lui envoie d'ordinaire, mais ce point d'entrée-là ne reçoit pas
+  de fichier. `sendImage` repasse donc par le webhook natif — et `send()`, lui,
+  garde le `/slack` ;
+- **un en-tête HTTP ne transporte que de l'ASCII**, et nos messages sont pleins
+  d'accents et d'emojis. Le texte qui accompagne une image ntfy est donc encodé
+  en RFC 2047 (`=?UTF-8?B?…?=`), que ntfy sait défaire.
+
+L'image voyage en octets, jamais en URL : l'application est derrière un code, donc
+un lien vers `/api/cards/…/photo` serait une adresse que Discord ne peut pas
+ouvrir.
 
 ### Plusieurs destinations
 
@@ -1012,6 +1098,9 @@ bout, sur un Postgres local et un vrai navigateur, avec des captures à l'appui.
 | Le choix des déclencheurs | hors ligne : la clé de chacun des six événements, `moved` avec et sans `byPrinter`, et le filtre (`null` tout, liste vide rien, liste partielle ce qu'il faut) ; de bout en bout : `moved` décoché tait la main mais pas le refus, `printerMoved` décoché laisse la machine avancer les cartes en silence tandis qu'un incident parle encore, rien de coché ne laisse partir que le test, une clé inconnue refusée en 400, et l'écran qui relit son état au rechargement |
 | La caméra | contre la **vraie** imprimante : une image tirée du flux, la vignette du bandeau, la vidéo en grand qui change à l'écran, la redirection ; hors ligne, contre un faux service MJPEG : le relais, l'absence de caméra, et le repli sur l'aperçu quand le flux est coupé |
 | Plusieurs destinations | deux destinations aux filtres différents — un événement, une seule reçoit ; une destination injoignable qui ne fait pas taire l'autre ; le test, la création et la suppression par destination ; le jeton jamais renvoyé ; table vide, l'environnement reprend la main |
+| Les photos de discussion | l'envoi depuis l'écran, la vignette relue au rechargement, la route qui sert l'image avec son cache, une URL qui se trompe de carte refusée, une photo sans texte, la suppression en cascade — et, hors ligne, ce que chaque transport ferait de l'image |
+| La « Shared Connection » | contre le **vrai** partage : l'état avec ses couches, l'aperçu, le flux relayé, la vignette dans le bandeau, et le jeton absent du HTML comme de l'API |
+| L'absence de caméra | la case barrée qui remplace la vignette, la fenêtre qui explique au lieu d'afficher une image cassée, la caméra qui revient, et le silence quand aucune caméra n'est promise |
 | Le lien de l'imprimante | absent de l'API comme du HTML rendu |
 | Contraste AA dans les deux thèmes | mesure du rapport réel sur les éléments rendus |
 | Mobile | 375 / 393 / 430 px : débordement, cibles tactiles, taille des champs — tableau et page de réglages |

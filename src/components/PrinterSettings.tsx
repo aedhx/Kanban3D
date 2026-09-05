@@ -126,8 +126,13 @@ export function PrinterSettings({
         <p className="mt-1.5 text-xs text-muted">
           Dans OctoEverywhere, ouvrez l’imprimante, créez un <strong>Live Link</strong> et collez
           son adresse ici. Il donne l’état en lecture seule, sans rien ouvrir sur le réseau, et se
-          révoque du même endroit. L’identifiant seul, ou une « Shared Connection », font aussi
-          l’affaire.
+          révoque du même endroit. L’identifiant seul suffit aussi.
+        </p>
+        <p className="mt-1.5 text-xs text-muted">
+          Une <strong>Shared Connection</strong> (<code>shared-….octoeverywhere.com</code>) marche
+          également, et en dit même un peu plus : elle donne le numéro de couche, que le Live Link
+          ne fournit pas. En revanche elle ne connaît ni l’image de fin d’impression, ni l’état en
+          toutes lettres — les deux adresses ne racontent pas tout à fait la même chose.
         </p>
       </section>
 

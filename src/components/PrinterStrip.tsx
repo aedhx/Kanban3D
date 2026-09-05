@@ -5,7 +5,7 @@ import type { PrinterView } from '@/lib/printerView'
 import { timeAgo } from '@/lib/dates'
 import { formatPrintTime } from '@/lib/printInfo'
 import { printerStateLabel } from '@/lib/printer'
-import { IconExternalLink, IconPrinter, IconSettings } from './icons'
+import { IconExternalLink, IconNoCamera, IconPrinter, IconSettings } from './icons'
 
 /** Le serveur ne rappelle l'imprimante qu'au bout de 20 s : inutile d'aller plus vite. */
 const REFRESH_MS = 20_000
@@ -95,11 +95,6 @@ export function PrinterStrip({
   }, [onPrinting])
 
   /*
-   * La vignette se rafraîchit avec le reste. On ne la demande que pendant une
-   * impression : au repos elle montrerait un plateau vide, et interroger le NAS
-   * pour ça n'a pas de sens.
-   */
-  /*
    * Le rythme de l'aperçu fixe, du plus soutenu au plus économe. Un échec ne
    * masque la vignette que jusqu'au prochain essai : une caméra qui revient — le
    * NAS qu'on rallume — se remet à s'afficher toute seule.
@@ -177,6 +172,14 @@ export function PrinterStrip({
   const vieux = printer.seenAt ? Date.now() - new Date(printer.seenAt).getTime() > PÉRIMÉ_MS : true
 
   /*
+   * Pas d'image, alors qu'il devrait y en avoir une. `hasSharePage` est le
+   * meilleur indice dont on dispose : c'est un lien de partage, donc une caméra
+   * est plausible. On n'affiche cette case que là — promettre une image à qui
+   * n'en a pas serait pire que le silence.
+   */
+  const caméraMuette = printer.hasSharePage && snapshot === null
+
+  /*
    * Gadget, la détection d'échec par IA d'OctoEverywhere. On ne l'affiche que
    * quand il s'inquiète : au vert, il n'apprend rien, et une pastille permanente
    * cesserait vite d'être lue.
@@ -211,10 +214,31 @@ export function PrinterStrip({
     >
       <div className="flex items-start gap-2">
         {/*
-          La webcam, si OctoEverywhere en sert une. Elle disparaît sans bruit
-          quand l'image manque — machine déconnectée, pas de caméra — et le
-          bandeau redevient exactement ce qu'il était.
+          La webcam. Quand l'image manque, la vignette ne disparaît pas en
+          silence : elle laisse une case barrée, cliquable, qui mène à
+          l'explication. Une image qui s'évanouit sans rien dire fait douter de
+          l'application ; une case vide dit qu'on sait, et pourquoi.
+
+          Elle n'apparaît que si une caméra est plausible, c'est-à-dire pour un
+          lien de partage — une « Shared Connection » n'expose pas d'aperçu, et
+          promettre une image qui n'existe pas serait pire que de ne rien dire.
         */}
+        {caméraMuette && (
+          <button
+            type="button"
+            onClick={() => {
+              setDirect(true)
+              setCycle((n) => n + 1)
+              setAgrandi(true)
+            }}
+            data-testid="webcam-vide"
+            aria-label="Pas d’image de la webcam — voir pourquoi"
+            className="flex h-[44px] w-[59px] shrink-0 items-center justify-center rounded border border-dashed border-line text-muted transition-colors hover:border-accent hover:text-accent sm:h-[54px] sm:w-[72px]"
+          >
+            <IconNoCamera size={18} aria-hidden />
+          </button>
+        )}
+
         {snapshot !== null && (
           <button
             type="button"
@@ -227,7 +251,14 @@ export function PrinterStrip({
             }}
             data-testid="webcam"
             aria-label="Voir la webcam en direct"
-            className="hidden shrink-0 overflow-hidden rounded border border-line sm:block"
+            /*
+              Visible sur téléphone aussi. Elle y était masquée du temps où elle
+              ne montrait rien — l'aperçu d'OctoEverywhere répondait 404 — et
+              c'était donc de la place perdue. Maintenant qu'il y a une image, le
+              téléphone est justement l'écran depuis lequel on veut jeter un œil
+              au plateau. Un peu plus petite en portrait, où la largeur compte.
+            */
+            className="block shrink-0 overflow-hidden rounded border border-line"
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
@@ -235,7 +266,7 @@ export function PrinterStrip({
               alt=""
               width={96}
               height={72}
-              className="h-[54px] w-[72px] object-cover"
+              className="h-[44px] w-[59px] object-cover sm:h-[54px] sm:w-[72px]"
               onLoad={() => setÉchec(false)}
               onError={() => {
                 setSnapshot(null)
@@ -283,7 +314,15 @@ export function PrinterStrip({
               injoignable
             </span>
           )}
+        </div>
 
+        {/*
+          Les deux commandes, calées en haut à droite plutôt qu'au bout du texte.
+          Dans le flux, elles se repliaient sur une ligne à elles dès que le texte
+          en occupait plusieurs — c'est-à-dire sur un téléphone en portrait — et
+          creusaient un vide au milieu du bandeau.
+        */}
+        <div className="flex shrink-0 items-center gap-0.5">
           {/*
             Chez OctoEverywhere : leur lecteur, leur bande passante, et tout ce
             que le nôtre ne montre pas — les commandes, l'historique. Le lien
@@ -301,7 +340,7 @@ export function PrinterStrip({
                 qu'une icône de 14 px — mesurée à 22 px de large, sous le seuil
                 que le reste du tableau respecte.
               */
-              className="ml-auto inline-flex min-h-10 min-w-10 shrink-0 items-center justify-center gap-1 rounded px-1 text-muted transition-colors hover:text-accent sm:min-h-6 sm:min-w-0"
+              className="inline-flex min-h-10 min-w-10 items-center justify-center gap-1 rounded text-muted transition-colors hover:text-accent sm:min-h-6 sm:min-w-0 sm:px-1"
             >
               <IconExternalLink size={14} aria-hidden />
               <span className="hidden sm:inline">OctoEverywhere</span>
@@ -311,10 +350,7 @@ export function PrinterStrip({
           <a
             href="/reglages"
             aria-label="Réglages de l’imprimante"
-            className={[
-              'inline-flex min-h-10 min-w-10 shrink-0 items-center justify-center rounded text-muted transition-colors hover:text-accent sm:min-h-6 sm:min-w-6',
-              printer.hasSharePage ? '' : 'ml-auto',
-            ].join(' ')}
+            className="inline-flex min-h-10 min-w-10 items-center justify-center rounded text-muted transition-colors hover:text-accent sm:min-h-6 sm:min-w-6"
           >
             <IconSettings size={14} aria-hidden />
           </a>
@@ -330,35 +366,73 @@ export function PrinterStrip({
       >
         {agrandi && (
           <div onClick={(e) => e.stopPropagation()}>
-            <div className="relative">
-              {/*
-                L'aperçu fixe, dessous. Il sert deux fois : il donne sa taille au
-                cadre, et il garde la dernière image sous les yeux pendant les
-                deux secondes où la vidéo se relance — sans lui, la reprise
-                clignoterait sur du vide toutes les vingt-trois secondes.
-              */}
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={`/api/printer/snapshot?t=${snapshot}`}
-                alt={`Webcam de ${printer.name}`}
-                className="max-h-[80vh] w-auto rounded-lg"
-              />
-              {direct && (
-                /* eslint-disable-next-line @next/next/no-img-element */
+            {snapshot === null ? (
+              /*
+                Rien à montrer. Le cas arrive plus souvent qu'on ne croit — NAS
+                éteint, imprimante débranchée du compagnon, partage sans caméra —
+                et il se manifestait jusqu'ici par une fenêtre vide, ce qui laisse
+                penser que l'application est cassée. On dit donc ce qu'on sait, et
+                on propose l'endroit où aller voir.
+              */
+              <div
+                data-testid="webcam-aucune-image"
+                className="flex min-h-48 w-[min(80vw,32rem)] flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-line px-6 text-center"
+              >
+                <IconNoCamera size={28} className="text-muted" aria-hidden />
+                <p className="text-sm font-medium">Pas d’image en ce moment</p>
+                <p className="text-xs text-muted">
+                  La caméra ne répond pas. Le NAS est peut-être éteint, l’imprimante déconnectée du
+                  compagnon OctoEverywhere, ou le partage ne contient pas de caméra. Le reste du
+                  tableau continue de fonctionner.
+                </p>
+              </div>
+            ) : (
+              <div className="relative">
+                {/*
+                  L'aperçu fixe, dessous. Il sert deux fois : il donne sa taille au
+                  cadre, et il garde la dernière image sous les yeux pendant les
+                  deux secondes où la vidéo se relance — sans lui, la reprise
+                  clignoterait sur du vide toutes les vingt-trois secondes.
+                */}
+                {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
-                  key={cycle}
-                  src={`/api/printer/stream?t=${cycle}`}
-                  alt=""
-                  data-testid="webcam-direct"
-                  className="absolute inset-0 h-full w-full rounded-lg object-cover"
-                  onError={() => setDirect(false)}
+                  src={`/api/printer/snapshot?t=${snapshot}`}
+                  alt={`Webcam de ${printer.name}`}
+                  className="max-h-[80vh] w-auto rounded-lg"
+                  onError={() => {
+                    setSnapshot(null)
+                    setÉchec(true)
+                  }}
                 />
-              )}
-            </div>
+                {direct && (
+                  /* eslint-disable-next-line @next/next/no-img-element */
+                  <img
+                    key={cycle}
+                    src={`/api/printer/stream?t=${cycle}`}
+                    alt=""
+                    data-testid="webcam-direct"
+                    className="absolute inset-0 h-full w-full rounded-lg object-cover"
+                    onError={() => setDirect(false)}
+                  />
+                )}
+              </div>
+            )}
 
             <div className="mt-2 flex items-center gap-2 px-1 text-xs">
-              <span className={direct ? 'font-medium text-accent-deep' : 'text-muted'}>
-                {direct ? 'En direct' : 'Aperçu, une image toutes les 2 s'}
+              <span
+                className={
+                  snapshot === null
+                    ? 'text-muted'
+                    : direct
+                      ? 'font-medium text-accent-deep'
+                      : 'text-muted'
+                }
+              >
+                {snapshot === null
+                  ? 'Nouvel essai dans deux minutes'
+                  : direct
+                    ? 'En direct'
+                    : 'Aperçu, une image toutes les 2 s'}
               </span>
               {printer.hasSharePage && (
                 <a
