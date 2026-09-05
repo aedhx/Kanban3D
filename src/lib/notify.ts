@@ -28,9 +28,18 @@ export type { NotificationEvent }
 
 const TIMEOUT_MS = 4000
 
+/** Une image prête à partir avec un message. */
+export type Image = { mime: string; bytes: Buffer }
+
 export type Transport = {
   name: string
   send: (message: string) => Promise<void>
+  /**
+   * Envoie le message **avec** l'image. Absent quand la destination ne sait pas
+   * faire : on retombe alors sur `send()`, et le message dit qu'il y a une photo
+   * plutôt que de la passer sous silence.
+   */
+  sendImage?: (message: string, image: Image) => Promise<void>
 }
 
 /* ------------------------------------------------------------------ */
@@ -48,8 +57,17 @@ function compose(event: NotificationEvent): string {
     }
     case 'moved':
       return `📦 ${event.by} a déplacé « ${event.title} » : ${event.from} → ${event.to}`
-    case 'commented':
-      return `💬 ${event.by} sur « ${event.title} » : ${truncate(event.body, 200)}`
+    case 'commented': {
+      /*
+       * Le message peut n'être qu'une photo. Dans ce cas on l'annonce, plutôt que
+       * d'envoyer « X sur « … » : » suivi de rien — et l'annonce sert aussi aux
+       * destinations qui ne savent pas recevoir l'image.
+       */
+      const texte = truncate(event.body, 200)
+      const début = `💬 ${event.by} sur « ${event.title} »`
+      if (!texte) return `📷 ${event.by} a envoyé une photo sur « ${event.title} »`
+      return event.photo ? `${début} 📷 : ${texte}` : `${début} : ${texte}`
+    }
     case 'declined':
       return `🚫 ${event.by} ne peut pas imprimer « ${event.title} » : ${truncate(event.reason, 200)}`
     case 'printer':
@@ -73,8 +91,27 @@ function truncate(text: string, max: number): string {
  */
 export function normalizeWebhookUrl(url: string): string {
   const propre = url.trim().replace(/\/+$/, '')
-  if (!/discord(app)?\.com\/api\/webhooks\//i.test(propre)) return propre
+  if (!estDiscord(propre)) return propre
   return propre.endsWith('/slack') ? propre : `${propre}/slack`
+}
+
+function estDiscord(url: string): boolean {
+  return /discord(app)?\.com\/api\/webhooks\//i.test(url)
+}
+
+/**
+ * L'adresse Discord **sans** son `/slack`, celle qui accepte une pièce jointe.
+ *
+ * Le suffixe `/slack` fait comprendre à Discord le format de message qu'on lui
+ * envoie d'ordinaire, mais ce point d'entrée-là ne reçoit pas de fichier. Pour une
+ * photo, on repasse donc par le webhook natif, qui attend un `payload_json` et le
+ * fichier à côté.
+ */
+function discordNatif(url: string): string {
+  return url
+    .trim()
+    .replace(/\/+$/, '')
+    .replace(/\/slack$/, '')
 }
 
 export function resolveTransport(config: TransportConfig): Transport | null {
@@ -95,6 +132,15 @@ export function resolveTransport(config: TransportConfig): Transport | null {
           }),
         })
       },
+      sendImage: async (message, image) => {
+        const formulaire = new FormData()
+        formulaire.set('chat_id', telegramChat)
+        // Telegram coupe une légende à 1024 caractères ; nos messages sont bien
+        // plus courts, mais autant ne pas dépendre de ça.
+        formulaire.set('caption', message.slice(0, 1024))
+        formulaire.set('photo', blob(image), nomDeFichier(image.mime))
+        await postForm(`https://api.telegram.org/bot${telegramToken}/sendPhoto`, formulaire)
+      },
     }
   }
 
@@ -108,6 +154,23 @@ export function resolveTransport(config: TransportConfig): Transport | null {
         await post(url, {
           headers: { 'Content-Type': 'text/plain; charset=utf-8', Title: 'Kanban3D' },
           body: message,
+        })
+      },
+      sendImage: async (message, image) => {
+        /*
+         * ntfy attache le corps de la requête quand `Filename` est posé ; le texte
+         * passe alors par l'en-tête `Message`. Un en-tête HTTP ne transporte que
+         * de l'ASCII, et nos messages sont pleins d'accents et d'emojis : on les
+         * encode donc selon la RFC 2047, que ntfy sait défaire.
+         */
+        await post(url, {
+          headers: {
+            'Content-Type': image.mime,
+            Title: 'Kanban3D',
+            Message: enTêteUtf8(message),
+            Filename: nomDeFichier(image.mime),
+          },
+          body: new Uint8Array(image.bytes),
         })
       },
     }
@@ -125,10 +188,48 @@ export function resolveTransport(config: TransportConfig): Transport | null {
           body: JSON.stringify({ text: message, content: message }),
         })
       },
+      /*
+       * Discord seulement. Un webhook générique — Slack, n8n, Zapier — n'a pas de
+       * façon commune de recevoir un fichier : `sendImage` reste alors absent, et
+       * l'appelant retombe sur le message, qui annonce la photo.
+       */
+      ...(estDiscord(webhook)
+        ? {
+            sendImage: async (message: string, image: Image) => {
+              const formulaire = new FormData()
+              formulaire.set('payload_json', JSON.stringify({ content: message }))
+              formulaire.set('files[0]', blob(image), nomDeFichier(image.mime))
+              await postForm(discordNatif(webhook), formulaire)
+            },
+          }
+        : {}),
     }
   }
 
   return null
+}
+
+function blob(image: Image): Blob {
+  return new Blob([new Uint8Array(image.bytes)], { type: image.mime })
+}
+
+function nomDeFichier(mime: string): string {
+  return `kanban3d.${mime === 'image/png' ? 'png' : mime === 'image/webp' ? 'webp' : 'jpg'}`
+}
+
+/** RFC 2047 : la seule façon de mettre un accent dans un en-tête HTTP. */
+function enTêteUtf8(valeur: string): string {
+  if (/^[\x20-\x7E]*$/.test(valeur)) return valeur
+  return `=?UTF-8?B?${Buffer.from(valeur, 'utf8').toString('base64')}?=`
+}
+
+/**
+ * Un envoi multipart. Le `Content-Type` n'est **pas** posé à la main : c'est le
+ * moteur qui l'écrit, avec la frontière qu'il vient de tirer au sort — l'imposer
+ * produirait un corps que personne ne sait relire.
+ */
+async function postForm(url: string, formulaire: FormData): Promise<void> {
+  await post(url, { body: formulaire })
 }
 
 async function post(url: string, init: RequestInit): Promise<void> {
@@ -188,7 +289,14 @@ export async function notify(event: NotificationEvent): Promise<void> {
         const transport = resolveTransport(destination)
         if (!transport) return
         try {
-          await transport.send(message)
+          /*
+           * L'image part avec le message quand la destination sait la recevoir.
+           * Sinon on envoie le texte, qui l'annonce : mieux vaut « X a envoyé une
+           * photo » qu'un message qui laisse croire qu'il n'y avait rien à voir.
+           */
+          const image = event.kind === 'commented' ? event.photo : undefined
+          if (image && transport.sendImage) await transport.sendImage(message, image)
+          else await transport.send(message)
         } catch (error) {
           console.warn(
             `[notify] échec de l'envoi vers « ${destination.label} » (${transport.name}) :`,

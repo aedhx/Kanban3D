@@ -64,6 +64,13 @@
       "when": 1788606880237,
       "tag": "0008_abandoned_black_queen",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1788608280276,
+      "tag": "0009_bent_ronan",
+      "breakpoints": true
     }
   ]
 }

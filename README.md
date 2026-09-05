@@ -203,6 +203,16 @@ remarque, et encore moins dans une conversation à part.
 Le nombre de messages s'affiche sur la carte, pour qu'on sache qu'il y a quelque
 chose à lire sans ouvrir.
 
+**On peut y joindre une photo**, et c'est souvent ce qui règle la question : le
+coin qui a décollé, la couleur réelle du filament, la pièce dans la main. Sur
+téléphone, le bouton ouvre directement l'appareil photo — la photo est
+redimensionnée dans le navigateur avant de partir, donc ça marche aussi au fond
+du garage. Une photo seule fait un message : montrer, c'est déjà dire quelque
+chose.
+
+Et la photo **part avec la notification** : sur Telegram et Discord, elle arrive
+dans la conversation, pas sous forme de lien qu'il faudrait aller ouvrir.
+
 ---
 
 ## Faire avancer une carte
