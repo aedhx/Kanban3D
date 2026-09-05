@@ -165,8 +165,11 @@ src/
     api/printer/route.ts         GET le dernier état (rafraîchi si > 20 s) · PATCH la config
     api/printer/test/route.ts    POST interroge sans rien enregistrer, et diagnostique
     api/printer/webhook/route.ts POST les événements poussés par OctoEverywhere
-    api/printer/snapshot/        GET l'aperçu webcam, servi par nous
-    api/notifications/           GET/PATCH la destination · POST /test l'envoie vraiment
+    api/printer/snapshot/        GET une image de la webcam, servie par nous
+    api/printer/stream/          GET le flux vidéo MJPEG, relayé par nous
+    api/printer/live/            GET redirige vers la page OctoEverywhere
+    api/notifications/           GET la liste · POST une destination de plus
+    api/notifications/[id]/      PATCH/DELETE une destination · POST /test l'éprouve
     reglages/page.tsx            imprimante et notifications
   components/
     Board.tsx                    l'état du tableau, le rafraîchissement, dnd-kit
@@ -659,10 +662,57 @@ GET https://octoeverywhere.com/cdn-api/live/snapshot?id=-<id>
 pourrait appeler l'adresse directement — elle est publique — mais il faudrait alors
 lui confier le lien, et **un Live Link est un sésame**. Il ne sort pas du serveur.
 
-**Ce que je n'ai pas pu vérifier** : les deux images. L'endpoint répond, mais
-renvoie `404` tant que le NAS n'est pas relié à l'imprimante. Les deux branches sont
-éprouvées localement — image servie *et* absente — et l'absence ne coûte qu'une
-vignette en moins.
+### L'aperçu qui n'a jamais rien montré
+
+Le NAS branché, la vérification a enfin pu avoir lieu — et elle a démenti ce qui
+précède :
+
+| Ce qu'on appelle | Réponse, machine en marche |
+| --- | --- |
+| `/cdn-api/live/snapshot` | **404**, systématiquement |
+| `/api/live/stream` | **200**, `multipart/x-mixed-replace`, 640×360 |
+| `/api/live/info` | `CanTryForLiveStream: true`, `MaxStreamTimeSec: 180` |
+
+L'aperçu fixe n'existe pas pour ce lien. La vignette du bandeau s'alimentait donc
+d'une source morte, et `fetchImage()` n'avait en pratique qu'une source sur deux
+pour la photo de fin d'impression. Aucune erreur nulle part : une image qui ne
+charge pas, et une vignette qu'on croyait simplement absente.
+
+Le flux MJPEG, lui, répond. Il sert maintenant deux fois.
+
+**`fetchFrame()`** ouvre le flux, lit jusqu'à trouver un JPEG complet, puis
+raccroche — mesuré à 47 Ko en 900 ms. Raccrocher n'est pas une politesse : le flux
+est continu, et le laisser couler retiendrait une fonction serverless jusqu'à sa
+propre limite. On cherche les bornes `ff d8` … `ff d9` plutôt que de découper
+l'enveloppe multipart : dans les données d'une image, un `ff` est toujours suivi
+d'un `00`, si bien qu'un `ff d9` ne peut être que la fin. C'est cette image qui
+alimente la vignette et qui redonne une source à la photo de fin.
+
+**`GET /api/printer/stream`** relaie le flux tel quel, en recopiant l'en-tête
+`Content-Type` — c'est lui qui porte la frontière entre les images. Le navigateur
+l'affiche dans une balise `img`, qui sait lire du MJPEG nativement.
+
+Trois limites se superposent sur un flux continu, et **mieux vaut être celui qui
+coupe** : OctoEverywhere ferme à 180 s, l'hébergeur ferme une fonction au bout de
+quelques dizaines de secondes, et nous raccrochons à 25 s. Côté navigateur, la
+balise est remontée toutes les 23 s — une balise `img` qui affiche du MJPEG ne
+prévient de rien quand le flux se termine, elle garde la dernière image
+indéfiniment, donc il n'y a pas d'événement à guetter. L'aperçu fixe reste affiché
+dessous pendant la reprise, sans quoi elle clignoterait sur du vide.
+
+Le flux amont est lu **au rythme où le navigateur consomme** (`pull` plutôt qu'une
+pompe libre) : sinon un onglet lent ferait gonfler une file d'images en mémoire
+dans la fonction. Et si le relais ne passe pas du tout — l'hébergeur peut refuser
+une réponse en flux —, `onError` fait retomber la vue sur l'aperçu redemandé toutes
+les deux secondes.
+
+**`GET /api/printer/live`** redirige vers la page OctoEverywhere. Même raison que
+le reste : le lien n'apparaît qu'au moment du clic, jamais dans le HTML.
+
+La vignette n'est plus réservée à l'impression. C'est en chauffe, en pause ou au
+repos qu'on veut regarder le plateau ; le rythme suit — 10 s en impression, 60 s au
+repos, 2 min après un échec, pour ne pas interroger le NAS toutes les minutes quand
+il n'y a pas de caméra.
 
 ### Refuser, sans quatrième colonne
 
@@ -701,7 +751,8 @@ grandeur annoncé comme tel vaut mieux qu'une heure précise et fausse.
 
 Elles existaient depuis longtemps et n'ont jamais été branchées : il fallait poser
 des variables d'environnement sur l'hébergeur **et redéployer**. Elles sont
-maintenant dans la page Réglages, avec une table `notifications` à une ligne.
+maintenant dans la page Réglages, d'abord avec une table `notifications` à une
+ligne — devenue `notification_targets`, voir plus bas.
 
 `resolveTransport()` prend sa configuration en paramètre au lieu de lire
 `process.env` ; `notificationConfig()` (`src/lib/notifySettings.ts`) décide de la
@@ -741,8 +792,7 @@ déplace une carte au nom de la machine) le fait tomber sous la clé `printerMov
 « Alexandre a déplacé » et « l'imprimante a déplacé » ne se taisent pas pour les
 mêmes raisons.
 
-La colonne `notifications.events` stocke les clés retenues, séparées par des
-virgules, avec **une distinction qui porte tout le réglage** :
+La colonne `events` stocke les clés retenues, séparées par des virgules, avec **une distinction qui porte tout le réglage** :
 
 > `NULL` veut dire « tous », `''` veut dire « aucun ».
 
@@ -769,6 +819,40 @@ donc dans un module feuille, que les deux côtés peuvent lire.
 Le bouton « Envoyer un test » ne passe pas par le filtre : il éprouve la
 destination, pas le choix des événements. Tout décocher laisse donc un test qui
 marche et une application silencieuse — ce que l'écran dit en toutes lettres.
+
+### Plusieurs destinations
+
+La table à une seule ligne avait un défaut qu'on ne voit qu'à l'usage : celui qui y
+posait son Discord privait l'autre du sien. `notification_targets` (migration
+`0008`) en tient autant qu'on veut, chacune avec son étiquette — trois webhooks
+Discord se ressemblent trait pour trait — et **ses propres cases**, parce qu'un
+salon partagé et un téléphone ne méritent pas le même niveau de détail.
+
+La migration recopie la ligne existante et **ne supprime pas** l'ancienne table :
+elle porte la seule configuration réelle de quelqu'un, et recopier puis détruire
+d'un même geste ne laisse aucun recours si la recopie se trompe. Le `NOT EXISTS`
+sur la table d'arrivée rend la recopie rejouable sans créer de doublon.
+
+Deux pièges viennent avec le pluriel, tous deux traités dans `notify()` :
+
+- **une destination morte ne doit pas faire taire les autres.** Chaque envoi a son
+  `catch`, et l'ensemble passe par `Promise.allSettled` ;
+- **une destination à moitié remplie ne doit pas couper le repli.** Quelqu'un clique
+  « ajouter » puis referme l'onglet : la table n'est plus vide, et un déploiement
+  qui notifiait très bien par variables d'environnement se tairait sans rien dire.
+  On ne compte donc que les destinations qui savent réellement envoyer
+  (`resolveTransport() !== null`), et l'environnement reprend la main quand il n'en
+  reste aucune.
+
+`lireLesChamps()` vit dans `notifySettings.ts` et sert à la création comme à la
+modification : une règle appliquée à l'une mais pas à l'autre est une règle qu'on
+contourne en deux requêtes. Elle n'est pas dans la route parce qu'un fichier
+`route.ts` n'est pas censé exporter autre chose que des verbes HTTP.
+
+Le test devient `POST /api/notifications/[id]/test` — c'est chaque destination
+qu'on veut éprouver, et une destination dont toutes les cases sont décochées doit
+rester testable, sinon on ne distingue plus « je l'ai fait taire » de « elle est
+cassée ».
 
 ### L'image de partage
 
@@ -926,6 +1010,8 @@ bout, sur un Postgres local et un vrai navigateur, avec des captures à l'appui.
 | Attente | cumul, quantités, reclassement par priorité, carte sans durée ignorée |
 | Notifications | les trois transports, la base qui l'emporte sur l'environnement et l'inverse, la destination morte rapportée mot pour mot, le `/slack` de Discord, aucun jeton renvoyé au navigateur |
 | Le choix des déclencheurs | hors ligne : la clé de chacun des six événements, `moved` avec et sans `byPrinter`, et le filtre (`null` tout, liste vide rien, liste partielle ce qu'il faut) ; de bout en bout : `moved` décoché tait la main mais pas le refus, `printerMoved` décoché laisse la machine avancer les cartes en silence tandis qu'un incident parle encore, rien de coché ne laisse partir que le test, une clé inconnue refusée en 400, et l'écran qui relit son état au rechargement |
+| La caméra | contre la **vraie** imprimante : une image tirée du flux, la vignette du bandeau, la vidéo en grand qui change à l'écran, la redirection ; hors ligne, contre un faux service MJPEG : le relais, l'absence de caméra, et le repli sur l'aperçu quand le flux est coupé |
+| Plusieurs destinations | deux destinations aux filtres différents — un événement, une seule reçoit ; une destination injoignable qui ne fait pas taire l'autre ; le test, la création et la suppression par destination ; le jeton jamais renvoyé ; table vide, l'environnement reprend la main |
 | Le lien de l'imprimante | absent de l'API comme du HTML rendu |
 | Contraste AA dans les deux thèmes | mesure du rapport réel sur les éléments rendus |
 | Mobile | 375 / 393 / 430 px : débordement, cibles tactiles, taille des champs — tableau et page de réglages |

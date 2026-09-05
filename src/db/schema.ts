@@ -252,10 +252,14 @@ export const printer = pgTable('printer', {
 })
 
 /**
- * Où partent les notifications.
+ * Où partent les notifications — **l'ancienne table, à une seule ligne**.
  *
- * Une seule ligne, comme `printer`, et pour la même raison : c'est une
- * configuration, pas une collection.
+ * Plus lue par personne : `notification_targets` l'a remplacée, parce qu'une
+ * destination unique obligeait les deux frères à partager le même Discord. La
+ * migration `0008` a recopié cette ligne de l'autre côté ; elle reste ici le
+ * temps que la nouvelle fasse ses preuves, et une migration ultérieure la
+ * retirera. Recopier *puis* détruire d'un même geste ne laisse aucun recours si
+ * la recopie se trompe.
  *
  * Ces réglages vivaient dans des variables d'environnement, ce qui obligeait à
  * redéployer pour changer de destination — et le résultat observable, c'est qu'ils
@@ -286,6 +290,34 @@ export const notifications = pgTable('notifications', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 })
 
+/**
+ * Les destinations de notification, une par ligne.
+ *
+ * Le pluriel vient d'un besoin très concret : la table précédente n'avait qu'une
+ * ligne, si bien que celui qui y posait son Discord privait l'autre du sien. Deux
+ * personnes, deux messageries, et pas forcément le même niveau de détail sur
+ * chacune — d'où `events` par destination plutôt qu'une seule fois pour tout le
+ * monde.
+ *
+ * L'étiquette est obligatoire : trois webhooks Discord se ressemblent trait pour
+ * trait, et sans nom on ne saurait pas lequel on est en train de faire taire.
+ */
+export const notificationTargets = pgTable('notification_targets', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  /** « Le Discord d'Alexandre », « Mon Telegram »… */
+  label: text('label').notNull(),
+  /** `telegram`, `ntfy` ou `webhook`. Jamais nul : une destination sans transport n'en est pas une. */
+  transport: text('transport').notNull(),
+  telegramToken: text('telegram_token'),
+  telegramChat: text('telegram_chat'),
+  ntfyTopic: text('ntfy_topic'),
+  webhookUrl: text('webhook_url'),
+  /** Mêmes règles qu'avant : `NULL` = tous les événements, `''` = aucun. */
+  events: text('events'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+})
+
 export const cardsRelations = relations(cards, ({ many }) => ({
   comments: many(comments),
 }))
@@ -299,3 +331,4 @@ export type NewCard = typeof cards.$inferInsert
 export type Comment = typeof comments.$inferSelect
 export type Printer = typeof printer.$inferSelect
 export type NotificationSettings = typeof notifications.$inferSelect
+export type NotificationTarget = typeof notificationTargets.$inferSelect

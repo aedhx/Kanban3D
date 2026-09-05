@@ -295,7 +295,13 @@ export function PrinterStrip({
               target="_blank"
               rel="noopener noreferrer"
               data-testid="voir-octoeverywhere"
-              className="ml-auto inline-flex min-h-10 shrink-0 items-center gap-1 rounded px-1 text-muted transition-colors hover:text-accent sm:min-h-6"
+              aria-label="Voir l’imprimante chez OctoEverywhere"
+              /*
+                `min-w-10` sur mobile : le libellé y est masqué, et il ne reste
+                qu'une icône de 14 px — mesurée à 22 px de large, sous le seuil
+                que le reste du tableau respecte.
+              */
+              className="ml-auto inline-flex min-h-10 min-w-10 shrink-0 items-center justify-center gap-1 rounded px-1 text-muted transition-colors hover:text-accent sm:min-h-6 sm:min-w-0"
             >
               <IconExternalLink size={14} aria-hidden />
               <span className="hidden sm:inline">OctoEverywhere</span>

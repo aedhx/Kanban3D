@@ -290,22 +290,22 @@ if (process.env.PRINTER_DEMO_URL) {
    * Les notifications, deuxième section de la même page. Un `form` distinct : le
    * sélecteur vise donc le second, pas le premier.
    */
-  await page.locator('[data-testid="transport-telegram"]').click()
-  await page.waitForTimeout(300)
-  /*
-   * Les six cases, toutes cochées : c'est l'état par défaut, et la capture doit
-   * le montrer plutôt que l'état de la base du moment. On coche dans le
-   * formulaire sans l'enregistrer — ce script ne modifie jamais les réglages.
-   */
-  for (const clé of ['created', 'moved', 'printerMoved', 'commented', 'declined', 'printer']) {
-    await page.locator(`[data-testid="trigger-${clé}"]`).check()
+  const destinations = page.locator('[data-testid="destination"]')
+  if ((await destinations.count()) === 0) {
+    console.log('  notifications.png — aucune destination enregistrée, capture passée')
+  } else {
+    /*
+     * Les cases sont laissées telles qu'elles sont enregistrées : deux
+     * destinations qui ne cochent pas la même chose, c'est justement ce que cette
+     * capture doit montrer. Ce script ne modifie jamais les réglages — c'est le
+     * jeu de démonstration qui les pose.
+     */
+    const bloc = page.locator('[data-testid="destinations"]')
+    await bloc.scrollIntoViewIfNeeded()
+    await page.waitForTimeout(200)
+    await bloc.screenshot({ path: `${OUT}/notifications.png` })
+    console.log('  notifications.png')
   }
-  await page.waitForTimeout(200)
-  const bloc = page.locator('form').nth(1)
-  await bloc.scrollIntoViewIfNeeded()
-  await page.waitForTimeout(200)
-  await bloc.screenshot({ path: `${OUT}/notifications.png` })
-  console.log('  notifications.png')
 
   // On ne laisse pas la base de démonstration reliée à une imprimante.
   await page.evaluate(async () => {

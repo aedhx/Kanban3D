@@ -17,7 +17,12 @@
  */
 
 import { shouldSend, type NotificationEvent } from './notifyEvents'
-import { notificationConfig, type TransportConfig } from './notifySettings'
+import {
+  environmentDestination,
+  readDestinations,
+  type Destination,
+  type TransportConfig,
+} from './notifySettings'
 
 export type { NotificationEvent }
 
@@ -150,24 +155,52 @@ async function post(url: string, init: RequestInit): Promise<void> {
  * temps. Le coût est de quelques centaines de millisecondes, invisibles pour
  * l'utilisateur puisque l'interface applique déjà le changement sans attendre.
  */
-export async function notify(event: NotificationEvent): Promise<void> {
-  const config = await notificationConfig()
-  if (!shouldSend(event, config.events)) return
-
-  const transport = resolveTransport(config)
-  if (!transport) return
-
-  try {
-    await transport.send(compose(event))
-  } catch (error) {
-    console.warn(
-      `[notify] échec de l'envoi via ${transport.name} :`,
-      error instanceof Error ? error.message : error,
-    )
-  }
+/**
+ * Qui doit être prévenu.
+ *
+ * On ne retient que les destinations réellement capables d'envoyer, et
+ * l'environnement ne reprend la main que s'il n'en reste aucune. La nuance
+ * compte : une destination à moitié remplie — quelqu'un a cliqué « ajouter »
+ * puis refermé l'onglet — ferait autrement taire un déploiement qui notifiait
+ * très bien par variables, sans le dire à personne.
+ */
+async function destinationsÀPrévenir(): Promise<Destination[]> {
+  const enBase = (await readDestinations()).filter(
+    (destination) => resolveTransport(destination) !== null,
+  )
+  return enBase.length > 0 ? enBase : [environmentDestination()]
 }
 
-/** Indique si un transport est configuré — utile pour le diagnostic. */
+export async function notify(event: NotificationEvent): Promise<void> {
+  const destinations = await destinationsÀPrévenir()
+  const message = compose(event)
+
+  /*
+   * Toutes en parallèle, et chacune isolée. C'est le risque propre au pluriel :
+   * une destination morte — un webhook Discord révoqué, un serveur ntfy éteint —
+   * ne doit pas empêcher les autres de recevoir. Le `allSettled` est la deuxième
+   * ceinture ; la première est le `catch` de chaque envoi.
+   */
+  await Promise.allSettled(
+    destinations
+      .filter((destination) => shouldSend(event, destination.events))
+      .map(async (destination) => {
+        const transport = resolveTransport(destination)
+        if (!transport) return
+        try {
+          await transport.send(message)
+        } catch (error) {
+          console.warn(
+            `[notify] échec de l'envoi vers « ${destination.label} » (${transport.name}) :`,
+            error instanceof Error ? error.message : error,
+          )
+        }
+      }),
+  )
+}
+
+/** Indique si au moins une destination est configurée — utile pour le diagnostic. */
 export async function notificationsConfigured(): Promise<boolean> {
-  return resolveTransport(await notificationConfig()) !== null
+  const destinations = await destinationsÀPrévenir()
+  return destinations.some((destination) => resolveTransport(destination) !== null)
 }
