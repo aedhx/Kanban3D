@@ -61,6 +61,22 @@ const COMMAND_STATUS_PATH = '/octoeverywhere-command-api/status'
  */
 const LIVE_SNAPSHOT_PATH = '/cdn-api/live/snapshot'
 
+/**
+ * Le flux vidéo de la webcam, en MJPEG (`multipart/x-mixed-replace`).
+ *
+ * C'est la voie qui marche, et l'aperçu fixe ci-dessus celle qui ne marche pas :
+ * interrogé sur le lien réel, `/cdn-api/live/snapshot` répond `404` alors que
+ * celui-ci rend 640×360 sans broncher. La vignette du bandeau s'alimentait donc
+ * d'une source qui n'a jamais rien donné.
+ *
+ * On s'en sert des deux façons : le proxy de flux le relaie tel quel, et
+ * `fetchFrame()` en extrait une seule image avant de raccrocher.
+ *
+ * OctoEverywhere coupe de lui-même au bout de `MaxStreamTimeSec` (180 s d'après
+ * `/api/live/info`) : une reconnexion périodique est de toute façon nécessaire.
+ */
+const LIVE_STREAM_PATH = '/api/live/stream'
+
 /** Une redirection est normale ici ; une chaîne de redirections ne l'est pas. */
 const MAX_REDIRECTIONS = 3
 
@@ -228,6 +244,27 @@ export function snapshotEndpoint(raw: string): URL | null {
   return partagé ? urlLive(LIVE_SNAPSHOT_PATH, partagé) : null
 }
 
+/** Le flux vidéo, pour la même adresse. Rien non plus pour une Shared Connection. */
+export function streamEndpoint(raw: string): URL | null {
+  const partagé = lienPartagé(raw.trim())
+  return partagé ? urlLive(LIVE_STREAM_PATH, partagé) : null
+}
+
+/**
+ * La page de partage elle-même, celle qu'ouvre le bouton « Voir chez
+ * OctoEverywhere ».
+ *
+ * On la reconstruit à partir de l'identifiant plutôt que de renvoyer la saisie
+ * telle quelle : l'utilisateur a pu coller une URL d'API, et c'est la page qu'on
+ * veut lui montrer. Le préfixe (`-` ou `.`) dit de quel type de lien il s'agit.
+ */
+export function sharePageUrl(raw: string): URL | null {
+  const partagé = lienPartagé(raw.trim())
+  if (!partagé) return null
+  const type = partagé.id.startsWith('.') ? 'view' : 'live'
+  return new URL(`${partagé.origine}/${type}/${partagé.id.slice(1)}`)
+}
+
 function urlLive(chemin: string, { id, origine }: { id: string; origine: string }): URL {
   const url = new URL(`${origine}${chemin}`)
   url.searchParams.set('id', id)
@@ -247,7 +284,20 @@ function autorisée(url: URL): boolean {
  * classique de faire pointer une URL publique vers une adresse privée, donc il
  * faut revalider à chaque saut. Le contrôle d'entrée ne suffit pas.
  */
-async function fetchSuivi(départ: URL, headers: Record<string, string>): Promise<Response> {
+async function fetchSuivi(
+  départ: URL,
+  headers: Record<string, string>,
+  /*
+   * Le délai est réglable, et le signal fourni de l'extérieur, parce qu'un flux
+   * vidéo ne se lit pas comme un appel d'état : six secondes le couperaient en
+   * pleine image, et il faut pouvoir raccrocher dès qu'on a ce qu'on est venu
+   * chercher. Par défaut, le comportement d'avant.
+   */
+  options: { timeoutMs?: number; signal?: AbortSignal } = {},
+): Promise<Response> {
+  const délai = AbortSignal.timeout(options.timeoutMs ?? TIMEOUT_MS)
+  const signal = options.signal ? AbortSignal.any([délai, options.signal]) : délai
+
   let cible = départ
   for (let saut = 0; saut <= MAX_REDIRECTIONS; saut++) {
     if (!autorisée(cible)) {
@@ -255,7 +305,7 @@ async function fetchSuivi(départ: URL, headers: Record<string, string>): Promis
     }
     const res = await fetch(cible, {
       redirect: 'manual',
-      signal: AbortSignal.timeout(TIMEOUT_MS),
+      signal,
       headers,
     })
     if (![301, 302, 303, 307, 308].includes(res.status)) return res
@@ -551,13 +601,113 @@ export function readWebhook(payload: unknown): Partial<PrinterReading> | null {
 const IMAGE_MIMES = new Set(['image/jpeg', 'image/png', 'image/webp'])
 const IMAGE_MAX_BYTES = 3_000_000
 
+/** Le temps qu'on s'accorde pour tirer une image du flux. Mesuré : ~2 s. */
+const FRAME_TIMEOUT_MS = 8000
+
+/**
+ * Ce qu'on accepte de lire avant d'abandonner la recherche d'une image.
+ *
+ * Une image du flux pèse une quarantaine de kilo-octets ; ce plafond n'est donc
+ * pas une limite de taille mais un garde-fou : sans lui, un flux qui ne
+ * ressemblerait pas à du MJPEG nous ferait lire indéfiniment.
+ */
+const FRAME_MAX_BYTES = 2_000_000
+
+/** Les bornes d'une image JPEG. `ff d8` l'ouvre, `ff d9` la ferme. */
+const JPEG_DÉBUT = Buffer.from([0xff, 0xd8])
+const JPEG_FIN = Buffer.from([0xff, 0xd9])
+
+/**
+ * Ouvre le flux vidéo et rend la réponse telle quelle, à charge de l'appelant de
+ * la consommer — c'est ce dont la route de proxy a besoin.
+ *
+ * `null` quand il n'y a rien à ouvrir : adresse qui n'est pas un lien partagé,
+ * adresse privée, ou refus d'OctoEverywhere.
+ */
+export async function openStream(
+  statusUrl: string,
+  options: { timeoutMs?: number; signal?: AbortSignal } = {},
+): Promise<Response | null> {
+  const url = streamEndpoint(statusUrl)
+  if (!url || !autorisée(url)) return null
+
+  try {
+    const res = await fetchSuivi(url, { Accept: 'multipart/x-mixed-replace, image/*' }, options)
+    if (!res.ok || !res.body) return null
+    return res
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Tire **une seule** image du flux vidéo, puis raccroche.
+ *
+ * C'est la vignette du bandeau, et le repli de la photo de fin d'impression.
+ * Raccrocher tout de suite n'est pas une politesse : le flux est continu, et le
+ * laisser couler retiendrait une fonction serverless jusqu'à sa propre limite.
+ *
+ * On cherche les bornes du JPEG plutôt que de découper l'enveloppe multipart :
+ * dans les données d'une image, un `ff` est toujours suivi d'un `00`, si bien
+ * qu'un `ff d9` ne peut être que la fin. **Ne lève jamais.**
+ */
+export async function fetchFrame(
+  statusUrl: string,
+): Promise<{ mime: string; bytes: Buffer } | null> {
+  const abandon = new AbortController()
+  const res = await openStream(statusUrl, {
+    timeoutMs: FRAME_TIMEOUT_MS,
+    signal: abandon.signal,
+  })
+  if (!res?.body) return null
+
+  const type = (res.headers.get('content-type') ?? '').split(';')[0].trim().toLowerCase()
+  // Certaines caméras répondent une image simple là où on attendait un flux.
+  if (IMAGE_MIMES.has(type)) {
+    try {
+      const bytes = Buffer.from(await res.arrayBuffer())
+      return bytes.length > 0 && bytes.length <= IMAGE_MAX_BYTES ? { mime: type, bytes } : null
+    } catch {
+      return null
+    }
+  }
+
+  const reader = res.body.getReader()
+  let tampon = Buffer.alloc(0)
+  try {
+    while (tampon.length < FRAME_MAX_BYTES) {
+      const { done, value } = await reader.read()
+      if (done) break
+      tampon = Buffer.concat([tampon, Buffer.from(value)])
+
+      const début = tampon.indexOf(JPEG_DÉBUT)
+      if (début < 0) continue
+      const fin = tampon.indexOf(JPEG_FIN, début + 2)
+      if (fin < 0) continue
+
+      // Recopiée : une vue sur le tampon en retiendrait tout le reste en mémoire.
+      return { mime: 'image/jpeg', bytes: Buffer.from(tampon.subarray(début, fin + 2)) }
+    }
+  } catch {
+    // Flux interrompu avant la première image complète : pas de vignette.
+  } finally {
+    abandon.abort()
+  }
+  return null
+}
+
 /**
  * Va chercher une image de l'impression, pour en faire la photo du résultat.
  *
- * Deux sources, dans l'ordre : celle qu'OctoEverywhere garde d'une impression
- * terminée, puis la webcam. La première est meilleure — elle est prise au bon
- * moment et survit à l'extinction de la machine — mais elle n'existe que si le
- * suivi d'impression est actif sur le compte.
+ * Trois sources, dans l'ordre : celle qu'OctoEverywhere garde d'une impression
+ * terminée, l'aperçu fixe de la webcam, puis une image tirée du flux vidéo. La
+ * première est meilleure — elle est prise au bon moment et survit à l'extinction
+ * de la machine — mais elle n'existe que si le suivi d'impression est actif sur
+ * le compte.
+ *
+ * La troisième a été ajoutée après avoir constaté que la deuxième répond `404`
+ * sur le lien réel : la photo automatique de fin d'impression n'avait donc, en
+ * pratique, qu'une seule source sur deux.
  *
  * **Ne lève jamais.** Ne pas avoir de photo n'empêche rien : la carte garde
  * l'image du modèle, et quelqu'un peut toujours en prendre une à la main.
@@ -596,7 +746,9 @@ export async function fetchImage(
       // Source injoignable : on essaie la suivante, sinon tant pis.
     }
   }
-  return null
+
+  // Dernier recours : une image tirée du flux vidéo, qui lui répond.
+  return statusUrl ? await fetchFrame(statusUrl) : null
 }
 
 /**

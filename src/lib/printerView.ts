@@ -1,4 +1,5 @@
 import type { Printer } from '@/db/schema'
+import { sharePageUrl } from './printer'
 
 /**
  * Ce que le navigateur a le droit de savoir de l'imprimante.
@@ -25,6 +26,12 @@ export function printerToView(ligne: Printer) {
      */
     hasSecret: Boolean(ligne.statusSecret),
     hasWebhookToken: Boolean(ligne.webhookToken),
+    /*
+     * Y a-t-il une page OctoEverywhere où envoyer ? On dit oui ou non, jamais
+     * l'adresse : c'est `/api/printer/live` qui l'emmène, par une redirection.
+     * Faux pour une Shared Connection, qui n'a pas de page de partage.
+     */
+    hasSharePage: Boolean(ligne.statusUrl && sharePageUrl(ligne.statusUrl)),
     autoAdvance: ligne.autoAdvance,
     state: ligne.state,
     statusColor: ligne.statusColor,

@@ -6,7 +6,7 @@ import { getDb } from '@/db'
 import { printer, type Printer } from '@/db/schema'
 import { isAuthenticated } from '@/lib/auth'
 import { printerToView } from '@/lib/printerView'
-import { notificationsToView, readNotificationRow } from '@/lib/notifySettings'
+import { readTargets, targetToView } from '@/lib/notifySettings'
 import { NotificationSettings } from '@/components/NotificationSettings'
 import { PrinterSettings } from '@/components/PrinterSettings'
 
@@ -44,7 +44,7 @@ export default async function ReglagesPage() {
 
   const db = getDb()
   const [ligne] = await db.select().from(printer).where(eq(printer.id, 1))
-  const notifs = await readNotificationRow()
+  const destinations = await readTargets()
 
   /*
    * L'origine sert à afficher l'adresse complète du webhook, celle qu'on ira
@@ -94,10 +94,11 @@ export default async function ReglagesPage() {
       <h2 className="mt-10 mb-1 text-sm font-semibold">Les notifications</h2>
       <p className="mb-4 text-xs text-muted">
         Pour être prévenu sur le téléphone quand l’autre demande, déplace ou commente une carte — et
-        quand une impression se termine ou tourne mal.
+        quand une impression se termine ou tourne mal. Autant de destinations que nécessaire :
+        chacun la sienne, chacune avec ses propres événements.
       </p>
 
-      <NotificationSettings initial={notificationsToView(notifs)} />
+      <NotificationSettings initial={destinations.map(targetToView)} />
     </main>
   )
 }

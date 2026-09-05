@@ -145,9 +145,22 @@ en « Fait » qu'à la dernière. Le filament s'additionne au fil des morceaux.
 ### Ce que la machine remarque avant nous
 
 Si **Gadget**, la surveillance par IA d'OctoEverywhere, suspecte un raté, le
-bandeau le dit. Et si le partage inclut une caméra, une vignette de la webcam
-s'affiche pendant l'impression, cliquable pour l'agrandir — servie par
-l'application, jamais par un lien qui traînerait dans le navigateur.
+bandeau le dit.
+
+### Regarder l'impression
+
+Une vignette de la webcam dans le bandeau, et un clic l'ouvre **en direct** —
+la vraie vidéo, pas un diaporama. Elle est là aussi quand la machine ne travaille
+pas : en chauffe, en pause, ou simplement pour vérifier que le plateau est libre
+avant de lancer quelque chose.
+
+Un bouton mène chez OctoEverywhere pour le reste — leur lecteur, l'historique,
+les commandes.
+
+Le flux passe par l'application. C'est délibéré : le *Live Link* ne demande aucun
+mot de passe, donc le poser dans la page reviendrait à le donner à quiconque
+l'ouvre. Il ne quitte pas le serveur, et le bouton ne le révèle qu'au moment du
+clic.
 
 ---
 
@@ -204,26 +217,33 @@ l'onglet : ce que l'un déplace, l'autre le voit.
 ### Être prévenu sur le téléphone
 
 Une notification part à chaque demande, chaque déplacement et chaque message — et
-quand une impression se termine ou tourne mal. Trois destinations au choix, à
-régler dans l'application : **Telegram**, **ntfy**, ou n'importe quel webhook —
-Discord, Slack, n8n.
+quand une impression se termine ou tourne mal.
+
+**Autant de destinations que nécessaire**, chacune avec son nom : le Discord de
+l'un, le Telegram de l'autre, un sujet ntfy sur son téléphone. Chacun la sienne,
+personne n'a à partager celle du voisin.
 
 ![Le réglage des notifications](docs/images/notifications.png)
 
-Un bouton « Envoyer un test » envoie vraiment, et répète mot pour mot ce que le
-service répond. C'est là qu'on se plante — un identifiant de groupe recopié sans
-son signe moins, un bot jamais ajouté à la conversation — et un message d'erreur
-vaut mieux qu'une notification qui n'arrive jamais.
+Six cases par destination disent **ce qui mérite un message** : une demande qui
+arrive, une carte déplacée à la main, une carte que l'imprimante fait avancer
+toute seule, un message dans une discussion, un refus, un souci sur la machine.
+Elles ne sont pas obligées de dire la même chose : le salon partagé peut tout
+recevoir pendant que le téléphone ne sonne que pour un refus ou une panne.
 
-Six cases disent **ce qui mérite un message** : une demande qui arrive, une carte
-déplacée à la main, une carte que l'imprimante fait avancer toute seule, un message
-dans une discussion, un refus, un souci sur la machine. Décocher les déplacements
-de l'imprimante est le réglage le plus utile : depuis qu'elle range les cartes
-elle-même, chaque départ et chaque fin d'impression produisait un message.
+Décocher les déplacements de l'imprimante est le réglage le plus utile : depuis
+qu'elle range les cartes elle-même, chaque départ et chaque fin d'impression
+produisait un message.
 
-Tout décoché, plus rien ne part — la destination reste enregistrée, et le bouton de
-test continue de fonctionner. Une installation qui n'a jamais ouvert cet écran, elle,
-prévient de tout : ce réglage ne fait taire que ce qu'on lui demande de taire.
+Un bouton « Envoyer un test » par destination envoie vraiment, et répète mot pour
+mot ce que le service répond. C'est là qu'on se plante — un identifiant de groupe
+recopié sans son signe moins, un bot jamais ajouté à la conversation — et un
+message d'erreur vaut mieux qu'une notification qui n'arrive jamais.
+
+Tout décoché, cette destination-là ne reçoit plus rien — elle reste enregistrée, et
+son bouton de test continue de fonctionner. Une installation qui n'a jamais ouvert
+cet écran, elle, prévient de tout : ce réglage ne fait taire que ce qu'on lui
+demande de taire.
 
 ---
 

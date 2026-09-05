@@ -5,7 +5,7 @@ import type { PrinterView } from '@/lib/printerView'
 import { timeAgo } from '@/lib/dates'
 import { formatPrintTime } from '@/lib/printInfo'
 import { printerStateLabel } from '@/lib/printer'
-import { IconPrinter, IconSettings } from './icons'
+import { IconExternalLink, IconPrinter, IconSettings } from './icons'
 
 /** Le serveur ne rappelle l'imprimante qu'au bout de 20 s : inutile d'aller plus vite. */
 const REFRESH_MS = 20_000
@@ -15,6 +15,35 @@ const PÉRIMÉ_MS = 90_000
 
 /** La webcam bouge plus vite que l'état : on la redemande plus souvent. */
 const SNAPSHOT_MS = 10_000
+
+/**
+ * Hors impression, la caméra reste allumée mais rien ne bouge vite.
+ *
+ * Elle était auparavant masquée dès que la machine n'imprimait pas. C'est
+ * précisément le moment où l'on veut regarder : en chauffe, en pause, ou pour
+ * vérifier que le plateau est libre avant de lancer quelque chose.
+ */
+const REPOS_MS = 60_000
+
+/** Après un échec, on n'insiste pas : une machine sans caméra répond toujours non. */
+const RETRY_MS = 120_000
+
+/**
+ * Le rythme de l'aperçu fixe quand il remplace la vidéo, faute de mieux.
+ *
+ * Une image toutes les deux secondes n'est pas du direct, mais on y voit la tête
+ * bouger — ce qui est tout ce qu'on demande à cette vue.
+ */
+const REPLI_MS = 2000
+
+/**
+ * On relance la vidéo un peu avant que le relais ne raccroche (25 s).
+ *
+ * Une balise `img` qui affiche du MJPEG ne prévient de rien quand le flux se
+ * termine : elle garde simplement la dernière image, indéfiniment. Plutôt que de
+ * guetter un événement qui n'existe pas, on la remonte à intervalle fixe.
+ */
+const CYCLE_MS = 23_000
 
 export function PrinterStrip({
   initial,
@@ -35,6 +64,17 @@ export function PrinterStrip({
    */
   const [snapshot, setSnapshot] = useState<number | null>(null)
   const [agrandi, setAgrandi] = useState(false)
+  /*
+   * La vue agrandie montre-t-elle la vraie vidéo, ou l'aperçu fixe rafraîchi ?
+   * On commence toujours par le direct, et on ne retombe sur l'autre qu'après un
+   * échec constaté : le relais d'un flux continu dépend de l'hébergeur, et ça se
+   * découvre à l'usage plutôt qu'à la construction.
+   */
+  const [direct, setDirect] = useState(true)
+  /** Numéro de reprise de la vidéo : le changer remonte la balise. */
+  const [cycle, setCycle] = useState(0)
+  /** La dernière image demandée a-t-elle échoué ? Espace les suivantes. */
+  const [échec, setÉchec] = useState(false)
   const dialogue = useRef<HTMLDialogElement>(null)
 
   const refresh = useCallback(async () => {
@@ -59,15 +99,35 @@ export function PrinterStrip({
    * impression : au repos elle montrerait un plateau vide, et interroger le NAS
    * pour ça n'a pas de sens.
    */
+  /*
+   * Le rythme de l'aperçu fixe, du plus soutenu au plus économe. Un échec ne
+   * masque la vignette que jusqu'au prochain essai : une caméra qui revient — le
+   * NAS qu'on rallume — se remet à s'afficher toute seule.
+   */
   useEffect(() => {
-    if (!printer?.printing) {
-      setSnapshot(null)
-      return
-    }
+    if (!printer?.configured) return
+    const rythme = échec
+      ? RETRY_MS
+      : agrandi && !direct
+        ? REPLI_MS
+        : printer.printing
+          ? SNAPSHOT_MS
+          : REPOS_MS
     setSnapshot(Date.now())
-    const timer = setInterval(() => setSnapshot(Date.now()), SNAPSHOT_MS)
+    const timer = setInterval(() => setSnapshot(Date.now()), rythme)
     return () => clearInterval(timer)
-  }, [printer?.printing])
+  }, [printer?.configured, printer?.printing, agrandi, direct, échec])
+
+  /*
+   * La reprise de la vidéo. Elle ne tourne que pendant que la vue est ouverte :
+   * fermer la fenêtre démonte la balise, ce qui coupe la connexion au relais, qui
+   * raccroche à son tour chez OctoEverywhere. Rien ne reste ouvert dans le dos.
+   */
+  useEffect(() => {
+    if (!agrandi || !direct) return
+    const timer = setInterval(() => setCycle((n) => n + 1), CYCLE_MS)
+    return () => clearInterval(timer)
+  }, [agrandi, direct])
 
   useEffect(() => {
     const dlg = dialogue.current
@@ -158,9 +218,15 @@ export function PrinterStrip({
         {snapshot !== null && (
           <button
             type="button"
-            onClick={() => setAgrandi(true)}
+            onClick={() => {
+              // On retente le direct à chaque ouverture : un échec passé ne doit
+              // pas condamner la vidéo pour le reste de la session.
+              setDirect(true)
+              setCycle((n) => n + 1)
+              setAgrandi(true)
+            }}
             data-testid="webcam"
-            aria-label="Agrandir l’aperçu de la webcam"
+            aria-label="Voir la webcam en direct"
             className="hidden shrink-0 overflow-hidden rounded border border-line sm:block"
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -170,7 +236,11 @@ export function PrinterStrip({
               width={96}
               height={72}
               className="h-[54px] w-[72px] object-cover"
-              onError={() => setSnapshot(null)}
+              onLoad={() => setÉchec(false)}
+              onError={() => {
+                setSnapshot(null)
+                setÉchec(true)
+              }}
             />
           </button>
         )}
@@ -214,17 +284,44 @@ export function PrinterStrip({
             </span>
           )}
 
+          {/*
+            Chez OctoEverywhere : leur lecteur, leur bande passante, et tout ce
+            que le nôtre ne montre pas — les commandes, l'historique. Le lien
+            n'est pas ici : la redirection va le chercher au moment du clic.
+          */}
+          {printer.hasSharePage && (
+            <a
+              href="/api/printer/live"
+              target="_blank"
+              rel="noopener noreferrer"
+              data-testid="voir-octoeverywhere"
+              aria-label="Voir l’imprimante chez OctoEverywhere"
+              /*
+                `min-w-10` sur mobile : le libellé y est masqué, et il ne reste
+                qu'une icône de 14 px — mesurée à 22 px de large, sous le seuil
+                que le reste du tableau respecte.
+              */
+              className="ml-auto inline-flex min-h-10 min-w-10 shrink-0 items-center justify-center gap-1 rounded px-1 text-muted transition-colors hover:text-accent sm:min-h-6 sm:min-w-0"
+            >
+              <IconExternalLink size={14} aria-hidden />
+              <span className="hidden sm:inline">OctoEverywhere</span>
+            </a>
+          )}
+
           <a
             href="/reglages"
             aria-label="Réglages de l’imprimante"
-            className="ml-auto inline-flex min-h-10 min-w-10 shrink-0 items-center justify-center rounded text-muted transition-colors hover:text-accent sm:min-h-6 sm:min-w-6"
+            className={[
+              'inline-flex min-h-10 min-w-10 shrink-0 items-center justify-center rounded text-muted transition-colors hover:text-accent sm:min-h-6 sm:min-w-6',
+              printer.hasSharePage ? '' : 'ml-auto',
+            ].join(' ')}
           >
             <IconSettings size={14} aria-hidden />
           </a>
         </div>
       </div>
 
-      {/* L'aperçu en grand, à la demande. */}
+      {/* La webcam en grand, et en direct quand le flux passe. */}
       <dialog
         ref={dialogue}
         onClose={() => setAgrandi(false)}
@@ -232,12 +329,57 @@ export function PrinterStrip({
         className="m-auto max-w-[90vw] rounded-xl border border-line bg-surface p-2 backdrop:bg-black/60"
       >
         {agrandi && (
-          /* eslint-disable-next-line @next/next/no-img-element */
-          <img
-            src={`/api/printer/snapshot?t=${snapshot}`}
-            alt={`Webcam de ${printer.name}`}
-            className="max-h-[80vh] w-auto rounded-lg"
-          />
+          <div onClick={(e) => e.stopPropagation()}>
+            <div className="relative">
+              {/*
+                L'aperçu fixe, dessous. Il sert deux fois : il donne sa taille au
+                cadre, et il garde la dernière image sous les yeux pendant les
+                deux secondes où la vidéo se relance — sans lui, la reprise
+                clignoterait sur du vide toutes les vingt-trois secondes.
+              */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={`/api/printer/snapshot?t=${snapshot}`}
+                alt={`Webcam de ${printer.name}`}
+                className="max-h-[80vh] w-auto rounded-lg"
+              />
+              {direct && (
+                /* eslint-disable-next-line @next/next/no-img-element */
+                <img
+                  key={cycle}
+                  src={`/api/printer/stream?t=${cycle}`}
+                  alt=""
+                  data-testid="webcam-direct"
+                  className="absolute inset-0 h-full w-full rounded-lg object-cover"
+                  onError={() => setDirect(false)}
+                />
+              )}
+            </div>
+
+            <div className="mt-2 flex items-center gap-2 px-1 text-xs">
+              <span className={direct ? 'font-medium text-accent-deep' : 'text-muted'}>
+                {direct ? 'En direct' : 'Aperçu, une image toutes les 2 s'}
+              </span>
+              {printer.hasSharePage && (
+                <a
+                  href="/api/printer/live"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="ml-auto inline-flex min-h-10 items-center gap-1 rounded text-muted transition-colors hover:text-accent sm:min-h-6"
+                >
+                  <IconExternalLink size={14} aria-hidden />
+                  Voir chez OctoEverywhere
+                </a>
+              )}
+              <button
+                type="button"
+                onClick={() => setAgrandi(false)}
+                className="inline-flex min-h-10 items-center rounded border border-line px-2 text-muted transition-colors hover:border-accent hover:text-accent sm:min-h-6"
+              >
+                Fermer
+              </button>
+            </div>
+          </div>
         )}
       </dialog>
 

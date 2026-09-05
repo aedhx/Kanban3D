@@ -57,6 +57,13 @@
       "when": 1787683658717,
       "tag": "0007_happy_ego",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1788606880237,
+      "tag": "0008_abandoned_black_queen",
+      "breakpoints": true
     }
   ]
 }
