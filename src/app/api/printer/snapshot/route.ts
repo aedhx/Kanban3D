@@ -26,14 +26,16 @@ export async function GET() {
   }
 
   const [ligne] = await getDb()
-    .select({ statusUrl: printer.statusUrl })
+    .select({ statusUrl: printer.statusUrl, altStatusUrl: printer.altStatusUrl })
     .from(printer)
     .where(eq(printer.id, 1))
-  if (!ligne?.statusUrl) {
+  if (!ligne?.statusUrl && !ligne?.altStatusUrl) {
     return NextResponse.json({ error: 'Aucune imprimante configurée.' }, { status: 404 })
   }
 
-  const image = await fetchImage(null, ligne.statusUrl)
+  // Les deux adresses : une seule des deux sert la caméra, et laquelle dépend de
+  // ce qui est configuré. `fetchImage` prend la première qui répond.
+  const image = await fetchImage(null, [ligne.statusUrl, ligne.altStatusUrl])
   if (!image) {
     return NextResponse.json({ error: 'Aucun aperçu disponible.' }, { status: 404 })
   }

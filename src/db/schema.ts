@@ -229,6 +229,20 @@ export const printer = pgTable('printer', {
   /** Adresse OctoEverywhere : « Live Link » de préférence, Shared Connection sinon. */
   statusUrl: text('status_url'),
   /**
+   * La seconde adresse, facultative.
+   *
+   * Nommée « l'autre », et pas « la connexion partagée » : rien n'oblige à mettre
+   * le Live Link dans l'une et le partage dans l'autre, et un nom qui décrirait le
+   * contenu mentirait le jour où on les intervertit. C'est la **forme de la
+   * réponse** qui décide de tout, jamais le champ où l'adresse a été rangée.
+   *
+   * Elle existe parce qu'aucune des deux ne dit tout : le Live Link donne l'état
+   * en toutes lettres, Gadget et l'image de fin ; le partage de connexion donne le
+   * numéro de couche et la température de chambre. Les deux lectures sont
+   * fusionnées.
+   */
+  altStatusUrl: text('alt_status_url'),
+  /**
    * Jeton éventuel de cette URL, et jeton du webhook entrant. Ni l'un ni l'autre
    * ne repart vers le navigateur : l'API dit seulement s'ils sont configurés.
    */
@@ -256,6 +270,8 @@ export const printer = pgTable('printer', {
   fileName: text('file_name'),
   nozzleTemp: doublePrecision('nozzle_temp'),
   bedTemp: doublePrecision('bed_temp'),
+  /** Température de chambre. Seule une connexion partagée la donne. */
+  chamberTemp: doublePrecision('chamber_temp'),
   /**
    * Gadget, la détection d'échec par IA d'OctoEverywhere : un libellé et sa
    * couleur (`g`, `y`, `r`, `w`). Restent nuls si Gadget n'est pas activé sur le

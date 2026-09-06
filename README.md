@@ -101,6 +101,12 @@ restant, les températures. Et si le fichier imprimé ressemble au titre d'une
 carte, **cette carte affiche aussi sa progression** — « sur l'imprimante 92 % ».
 Le tableau ne dit plus seulement ce qui est demandé, il dit où ça en est.
 
+Deux adresses valent mieux qu'une, et l'application accepte les deux : le
+**Live Link** donne l'état en toutes lettres (« liaison perdue »), l'alerte Gadget
+et la photo de fin d'impression ; la **Shared Connection** donne le numéro de
+couche et la température de chambre. Chaque information vient de celle qui la
+connaît, et renseigner les deux évite de choisir.
+
 La liaison passe par **OctoEverywhere**, qui sait parler aux imprimantes Elegoo.
 Dans OctoEverywhere, on crée un *Live Link* — une adresse en lecture seule — et on
 la colle dans les réglages. Rien à ouvrir sur le réseau, rien à installer, et le

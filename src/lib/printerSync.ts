@@ -151,7 +151,10 @@ async function avancerLeTableau(
     }
 
     await déplacer(carte, 'done', après.name, { ...filament, piecesDone: faites })
-    await photographier(carte.id, lecture.trackedImageUrl ?? null, après.statusUrl)
+    await photographier(carte.id, lecture.trackedImageUrl ?? null, [
+      après.statusUrl,
+      après.altStatusUrl,
+    ])
   }
 }
 
@@ -260,7 +263,7 @@ async function déplacer(
 async function photographier(
   cardId: string,
   imageDeFin: string | null,
-  statusUrl: string | null,
+  adresses: (string | null)[],
 ): Promise<void> {
   const db = getDb()
 
@@ -271,7 +274,7 @@ async function photographier(
     .where(eq(cardPhotos.cardId, cardId))
   if (déjà) return
 
-  const image = await fetchImage(imageDeFin, statusUrl)
+  const image = await fetchImage(imageDeFin, adresses)
   if (!image) return
 
   await db

@@ -17,6 +17,7 @@ const DÉFAUTS: Printer = {
   id: 1,
   name: 'L’imprimante d’Alexandre',
   statusUrl: null,
+  altStatusUrl: null,
   statusSecret: null,
   webhookToken: null,
   autoAdvance: true,
@@ -31,6 +32,7 @@ const DÉFAUTS: Printer = {
   fileName: null,
   nozzleTemp: null,
   bedTemp: null,
+  chamberTemp: null,
   gadgetStatus: null,
   gadgetColor: null,
   filamentUsedMg: null,
@@ -88,6 +90,7 @@ export default async function ReglagesPage() {
          */
         initial={printerToView(ligne ?? DÉFAUTS)}
         adresse={ligne?.statusUrl ?? null}
+        adresseSeconde={ligne?.altStatusUrl ?? null}
         origin={`${protocole}://${host}`}
       />
 

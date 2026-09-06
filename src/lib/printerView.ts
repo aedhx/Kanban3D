@@ -16,7 +16,7 @@ import { sharePageUrl } from './printer'
 export function printerToView(ligne: Printer) {
   return {
     name: ligne.name,
-    configured: Boolean(ligne.statusUrl),
+    configured: Boolean(ligne.statusUrl || ligne.altStatusUrl),
     /*
      * L'adresse elle-même ne sort pas d'ici. Un « Live Link » ne demande aucune
      * authentification : le posséder suffit à lire l'imprimante et sa webcam.
@@ -25,13 +25,18 @@ export function printerToView(ligne: Printer) {
      * a besoin pour l'afficher, va le chercher côté serveur.
      */
     hasSecret: Boolean(ligne.statusSecret),
+    /** Une seconde adresse est-elle configurée ? Jamais son contenu. */
+    hasAltUrl: Boolean(ligne.altStatusUrl),
     hasWebhookToken: Boolean(ligne.webhookToken),
     /*
      * Y a-t-il une page OctoEverywhere où envoyer ? On dit oui ou non, jamais
      * l'adresse : c'est `/api/printer/live` qui l'emmène, par une redirection.
-     * Faux pour une Shared Connection, qui n'a pas de page de partage.
+     * Vrai dès que **l'une** des deux adresses en a une — un Live Link ouvre sa
+     * page de partage, une connexion partagée ouvre l'interface de l'imprimante.
      */
-    hasSharePage: Boolean(ligne.statusUrl && sharePageUrl(ligne.statusUrl)),
+    hasSharePage: [ligne.statusUrl, ligne.altStatusUrl].some(
+      (adresse) => adresse && sharePageUrl(adresse),
+    ),
     autoAdvance: ligne.autoAdvance,
     state: ligne.state,
     statusColor: ligne.statusColor,
@@ -44,6 +49,7 @@ export function printerToView(ligne: Printer) {
     fileName: ligne.fileName,
     nozzleTemp: ligne.nozzleTemp,
     bedTemp: ligne.bedTemp,
+    chamberTemp: ligne.chamberTemp,
     gadgetStatus: ligne.gadgetStatus,
     gadgetColor: ligne.gadgetColor,
     seenAt: ligne.seenAt?.toISOString() ?? null,
