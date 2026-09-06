@@ -42,17 +42,17 @@ export async function GET() {
   }
 
   const [ligne] = await getDb()
-    .select({ statusUrl: printer.statusUrl })
+    .select({ statusUrl: printer.statusUrl, altStatusUrl: printer.altStatusUrl })
     .from(printer)
     .where(eq(printer.id, 1))
-  if (!ligne?.statusUrl) {
+  if (!ligne?.statusUrl && !ligne?.altStatusUrl) {
     return NextResponse.json({ error: 'Aucune imprimante configurée.' }, { status: 404 })
   }
 
   // Notre propre poignée pour raccrocher chez OctoEverywhere : ni la fin du
   // délai, ni l'onglet qu'on ferme ne doivent laisser une connexion ouverte.
   const abandon = new AbortController()
-  const amont = await openStream(ligne.statusUrl, {
+  const amont = await openStream([ligne.statusUrl, ligne.altStatusUrl], {
     timeoutMs: DURÉE_MAX_MS + 5000,
     signal: abandon.signal,
   })

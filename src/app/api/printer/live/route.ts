@@ -25,11 +25,16 @@ export async function GET() {
   }
 
   const [ligne] = await getDb()
-    .select({ statusUrl: printer.statusUrl })
+    .select({ statusUrl: printer.statusUrl, altStatusUrl: printer.altStatusUrl })
     .from(printer)
     .where(eq(printer.id, 1))
 
-  const page = ligne?.statusUrl ? sharePageUrl(ligne.statusUrl) : null
+  // La première des deux qui mène quelque part. Un Live Link ouvre sa page de
+  // partage, une connexion partagée ouvre l'interface de l'imprimante.
+  const page = [ligne?.statusUrl, ligne?.altStatusUrl]
+    .filter((v): v is string => Boolean(v))
+    .map((adresse) => sharePageUrl(adresse))
+    .find((url) => url !== null)
   if (!page) {
     return NextResponse.json({ error: 'Aucune page de partage connue.' }, { status: 404 })
   }

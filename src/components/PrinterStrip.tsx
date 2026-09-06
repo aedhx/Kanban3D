@@ -204,6 +204,8 @@ export function PrinterStrip({
       : null,
     enCours && printer.nozzleTemp ? `buse ${Math.round(printer.nozzleTemp)}°` : null,
     enCours && printer.bedTemp ? `plateau ${Math.round(printer.bedTemp)}°` : null,
+    // La chambre ne vient que d'une connexion partagée : le plus souvent absente.
+    enCours && printer.chamberTemp ? `chambre ${Math.round(printer.chamberTemp)}°` : null,
   ].filter(Boolean)
 
   return (

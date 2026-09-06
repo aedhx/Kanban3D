@@ -743,6 +743,43 @@ La forme est reconnue **à ce qu'on sait en déduire**, pas au nom d'hôte :
 ferait rater celle de demain. Le jeton vit dans le sous-domaine — c'est donc un
 sésame au même titre qu'un Live Link, et il ne quitte pas plus le serveur.
 
+### Les deux adresses à la fois
+
+Puisque aucune des deux ne dit tout, on garde les deux : `printer.alt_status_url`
+(migration `0010`), plus `chamber_temp` que seul le partage fournit.
+
+La colonne s'appelle « l'autre adresse » et pas « la connexion partagée » : rien
+n'oblige à ranger le Live Link dans l'une et le partage dans l'autre, et un nom
+qui décrirait le contenu mentirait le jour où on les intervertit. **C'est la forme
+de la réponse qui décide de tout**, jamais le champ où l'adresse a été rangée —
+`readStatus()` rend donc `{ reading, forme }`, et `probePrinter()` transmet la
+forme.
+
+`fusionnerLectures()` tient en une phrase : **champ par champ, la première valeur
+non nulle gagne, le Live Link d'abord**. Pas de table de priorité, parce qu'il n'en
+faut pas : ce que seule l'une connaît est nul chez l'autre, donc l'ordre ne
+tranche que les champs que les deux renseignent — et là on veut quelque chose de
+stable plutôt que de malin. Une exception, commentée : `printing` est un booléen,
+jamais nul ; il suit le Live Link, qui le déduit d'`IsTimeFlowing` — la machine
+qui avance vraiment — là où l'autre forme s'en remet au seul libellé d'état.
+
+Trois conséquences en aval :
+
+- `GET /api/printer` sonde les deux **en parallèle**. Les interroger l'une après
+  l'autre doublerait la durée du rafraîchissement sans rien apporter ;
+- **`lastError` n'est posé que si les deux échouent.** Une seconde adresse fautive
+  ne doit pas faire passer pour muette une machine que la première décrit très
+  bien — c'est le piège de tout passage au pluriel, déjà rencontré avec les
+  destinations de notification ;
+- `fetchImage()`, `fetchFrame()` et `openStream()` acceptent une **liste**
+  d'adresses et prennent la première qui répond. Une seule des deux sert la
+  caméra, et laquelle dépend de ce qui est configuré : on essaie plutôt que de
+  deviner.
+
+Le bouton de test rend un diagnostic **par adresse**, l'un sous l'autre. C'est
+tout l'intérêt de ce bouton : distinguer « celle-ci est mauvaise » de
+« l'imprimante est éteinte ».
+
 ### La vignette sur téléphone
 
 Elle n'est plus réservée aux grands écrans non plus. Elle y était masquée
@@ -1099,6 +1136,7 @@ bout, sur un Postgres local et un vrai navigateur, avec des captures à l'appui.
 | La caméra | contre la **vraie** imprimante : une image tirée du flux, la vignette du bandeau, la vidéo en grand qui change à l'écran, la redirection ; hors ligne, contre un faux service MJPEG : le relais, l'absence de caméra, et le repli sur l'aperçu quand le flux est coupé |
 | Plusieurs destinations | deux destinations aux filtres différents — un événement, une seule reçoit ; une destination injoignable qui ne fait pas taire l'autre ; le test, la création et la suppression par destination ; le jeton jamais renvoyé ; table vide, l'environnement reprend la main |
 | Les photos de discussion | l'envoi depuis l'écran, la vignette relue au rechargement, la route qui sert l'image avec son cache, une URL qui se trompe de carte refusée, une photo sans texte, la suppression en cascade — et, hors ligne, ce que chaque transport ferait de l'image |
+| Les deux adresses ensemble | la fusion hors ligne (chacune seule, les deux, l'ordre indifférent, le désaccord tranché, `printing` qui suit le Live Link) ; et de bout en bout contre un faux service qui sert les deux formes : les couches viennent de l'une, l'état en toutes lettres de l'autre, une seconde adresse fautive ne fait rien perdre, deux fautives rapportent l'erreur, et aucune adresse ne sort vers le navigateur |
 | La « Shared Connection » | contre le **vrai** partage : l'état avec ses couches, l'aperçu, le flux relayé, la vignette dans le bandeau, et le jeton absent du HTML comme de l'API |
 | L'absence de caméra | la case barrée qui remplace la vignette, la fenêtre qui explique au lieu d'afficher une image cassée, la caméra qui revient, et le silence quand aucune caméra n'est promise |
 | Le lien de l'imprimante | absent de l'API comme du HTML rendu |

@@ -149,6 +149,8 @@ export type PrinterReading = {
   fileName: string | null
   nozzleTemp: number | null
   bedTemp: number | null
+  /** Température de chambre. Seule une connexion partagée la donne. */
+  chamberTemp: number | null
   /**
    * Gadget, la détection d'échec par IA d'OctoEverywhere : un libellé et sa
    * couleur. Nuls quand Gadget n'est pas activé sur le compte.
@@ -165,8 +167,15 @@ export type PrinterReading = {
   trackedImageUrl: string | null
 }
 
+/**
+ * D'où vient une lecture. Les deux API n'ont pas les mêmes champs, et la fusion
+ * a besoin de savoir laquelle a parlé — pas pour lui faire confiance davantage,
+ * mais pour donner un ordre stable quand les deux répondent.
+ */
+export type FormeDeLecture = 'live' | 'shared'
+
 export type PrinterProbe =
-  | { ok: true; reading: PrinterReading; detail: string }
+  | { ok: true; reading: PrinterReading; detail: string; forme: FormeDeLecture }
   | { ok: false; error: string; hint?: string }
 
 const nombre = (value: unknown): number | null =>
@@ -446,14 +455,15 @@ export async function probePrinter(rawUrl: string, secret?: string | null): Prom
     }
   }
 
-  const reading = readStatus(json)
-  if (!reading) {
+  const lu = readStatus(json)
+  if (!lu) {
     return {
       ok: false,
       error: 'Réponse inattendue : aucun état d’impression dedans.',
       hint: brut.slice(0, 300),
     }
   }
+  const { reading, forme } = lu
 
   /*
    * Le détail complète l'état sans le répéter : le nom du fichier et l'avancement,
@@ -468,7 +478,50 @@ export async function probePrinter(rawUrl: string, secret?: string | null): Prom
     reading.nozzleTemp ? `buse ${Math.round(reading.nozzleTemp)}°` : null,
   ].filter(Boolean)
 
-  return { ok: true, reading, detail: détail.join(' · ') || 'aucune impression en cours' }
+  return { ok: true, reading, forme, detail: détail.join(' · ') || 'aucune impression en cours' }
+}
+
+/**
+ * Fusionne les lectures des deux adresses en une seule.
+ *
+ * Aucune des deux API ne dit tout, et c'est toute la raison d'en avoir deux : le
+ * Live Link donne l'état en toutes lettres, sa couleur, Gadget et l'image de fin ;
+ * la connexion partagée donne le numéro de couche et la température de chambre.
+ *
+ * La règle tient en une phrase : **champ par champ, la première valeur non nulle
+ * gagne, le Live Link d'abord**. Pas besoin d'une table de priorité — ce que seule
+ * l'une connaît est nul chez l'autre, donc l'ordre ne tranche que les champs que
+ * les deux renseignent, et là on veut quelque chose de stable plutôt que de malin.
+ *
+ * Une seule exception : `printing` est un booléen, jamais nul. Il suit le Live
+ * Link quand celui-ci a répondu, parce qu'il le déduit d'`IsTimeFlowing` — la
+ * machine qui avance vraiment — là où l'autre forme s'en remet au seul libellé
+ * d'état.
+ */
+export function fusionnerLectures(
+  lectures: { reading: PrinterReading; forme: FormeDeLecture }[],
+): PrinterReading | null {
+  if (lectures.length === 0) return null
+  // Le Live Link en tête, quel que soit le champ où son adresse a été rangée.
+  const ordonnées = [...lectures].sort((a, b) =>
+    a.forme === 'live' ? -1 : b.forme === 'live' ? 1 : 0,
+  )
+  if (ordonnées.length === 1) return ordonnées[0].reading
+
+  const [première, ...suivantes] = ordonnées
+  const fusion: PrinterReading = { ...première.reading }
+
+  for (const { reading } of suivantes) {
+    for (const [nom, valeur] of Object.entries(reading)) {
+      if (valeur === null || valeur === undefined) continue
+      // `printing` est déjà tranché par la première lecture : voir plus haut.
+      if (nom === 'printing') continue
+      if (fusion[nom as keyof PrinterReading] === null) {
+        Object.assign(fusion, { [nom]: valeur })
+      }
+    }
+  }
+  return fusion
 }
 
 /**
@@ -478,21 +531,23 @@ export async function probePrinter(rawUrl: string, secret?: string | null): Prom
  * `Result.JobStatus.CurrentPrint`. On reconnaît la forme aux champs présents
  * plutôt qu'à l'URL appelée — c'est la réponse qui décide, pas notre supposition.
  */
-export function readStatus(payload: unknown): PrinterReading | null {
+export function readStatus(
+  payload: unknown,
+): { reading: PrinterReading; forme: FormeDeLecture } | null {
   if (!payload || typeof payload !== 'object') return null
   const racine = payload as Record<string, unknown>
   const résultat = (racine.Result ?? racine.result ?? racine) as Record<string, unknown>
   if (!résultat || typeof résultat !== 'object') return null
 
   const job = (résultat.JobStatus ?? résultat.jobStatus) as Record<string, unknown> | undefined
-  if (job) return depuisJobStatus(job)
+  if (job) return { reading: depuisJobStatus(job), forme: 'shared' }
 
   if (
     'IsInHostErrorState' in résultat ||
     'IsTimeFlowing' in résultat ||
     'StatusColor' in résultat
   ) {
-    return depuisLiveLink(résultat)
+    return { reading: depuisLiveLink(résultat), forme: 'live' }
   }
   return null
 }
@@ -527,6 +582,8 @@ function depuisLiveLink(r: Record<string, unknown>): PrinterReading {
     fileName: texte(r.FileName ?? r.fileName),
     nozzleTemp: nombre(r.HotendActual ?? r.hotendActual),
     bedTemp: nombre(r.BedActual ?? r.bedActual),
+    // Le Live Link n'en parle pas ; le champ existe pour la fusion.
+    chamberTemp: nombre(r.ChamberActual ?? r.chamberActual),
     gadgetStatus: texte(r.GadgetStatus ?? r.gadgetStatus),
     gadgetColor: texte(r.GadgetStatusColor ?? r.gadgetStatusColor),
     filamentUsedMg: nombre(r.EstTotalFilamentWeightMg ?? r.estTotalFilamentWeightMg),
@@ -553,7 +610,14 @@ function depuisJobStatus(job: Record<string, unknown>): PrinterReading {
     fileName: texte(print.FileName ?? print.fileName),
     nozzleTemp: nombre(temps.HotendActual ?? temps.hotendActual),
     bedTemp: nombre(temps.BedActual ?? temps.bedActual),
-    // Cette API-là ne parle ni de Gadget, ni de filament, ni d'image de fin.
+    // Celle-ci, si — et c'est la seule.
+    chamberTemp: nombre(temps.ChamberActual ?? temps.chamberActual),
+    /*
+     * Cette API-là ne donne ni libellé Gadget, ni image de fin. Elle donne bien un
+     * *score* Gadget brut (`OctoEverywhereStatus.Gadget.LastScore`), mais le seuil
+     * à partir duquel il inquiète n'est documenté nulle part : inventer une
+     * frontière ferait dire à l'application quelque chose qu'elle ne sait pas.
+     */
     gadgetStatus: null,
     gadgetColor: null,
     filamentUsedMg: null,
@@ -603,7 +667,7 @@ export function readWebhook(payload: unknown): Partial<PrinterReading> | null {
 
   // Un webhook peut aussi porter la même enveloppe que l'API d'état.
   const complet = readStatus(payload)
-  if (complet?.state) return complet
+  if (complet?.reading.state) return complet.reading
 
   const event = texte(p.EventType ?? p.eventType ?? p.Event ?? p.event)
   if (!event) return null
@@ -669,19 +733,31 @@ const JPEG_FIN = Buffer.from([0xff, 0xd9])
  * adresse privée, ou refus d'OctoEverywhere.
  */
 export async function openStream(
-  statusUrl: string,
+  adresses: string | (string | null)[],
   options: { timeoutMs?: number; signal?: AbortSignal } = {},
 ): Promise<Response | null> {
-  const url = streamEndpoint(statusUrl)
-  if (!url || !autorisée(url)) return null
-
-  try {
-    const res = await fetchSuivi(url, { Accept: 'multipart/x-mixed-replace, image/*' }, options)
-    if (!res.ok || !res.body) return null
-    return res
-  } catch {
-    return null
+  /*
+   * Plusieurs adresses possibles, essayées dans l'ordre : une seule des deux sert
+   * la caméra, et laquelle dépend de ce qui est configuré. On prend la première
+   * qui répond plutôt que de deviner.
+   */
+  for (const adresse of liste(adresses)) {
+    const url = streamEndpoint(adresse)
+    if (!url || !autorisée(url)) continue
+    try {
+      const res = await fetchSuivi(url, { Accept: 'multipart/x-mixed-replace, image/*' }, options)
+      if (res.ok && res.body) return res
+    } catch {
+      // Adresse muette : on essaie la suivante.
+    }
   }
+  return null
+}
+
+/** Une adresse ou plusieurs, réduites à celles qui existent. */
+function liste(adresses: string | (string | null)[]): string[] {
+  const brut = typeof adresses === 'string' ? [adresses] : adresses
+  return brut.filter((v): v is string => Boolean(v && v.trim()))
 }
 
 /**
@@ -696,10 +772,10 @@ export async function openStream(
  * qu'un `ff d9` ne peut être que la fin. **Ne lève jamais.**
  */
 export async function fetchFrame(
-  statusUrl: string,
+  adresses: string | (string | null)[],
 ): Promise<{ mime: string; bytes: Buffer } | null> {
   const abandon = new AbortController()
-  const res = await openStream(statusUrl, {
+  const res = await openStream(adresses, {
     timeoutMs: FRAME_TIMEOUT_MS,
     signal: abandon.signal,
   })
@@ -758,11 +834,12 @@ export async function fetchFrame(
  */
 export async function fetchImage(
   imageDeFin: string | null,
-  statusUrl: string | null,
+  adresses: string | (string | null)[],
 ): Promise<{ mime: string; bytes: Buffer } | null> {
-  const sources = [imageDeFin, statusUrl ? snapshotEndpoint(statusUrl)?.toString() : null].filter(
-    (v): v is string => Boolean(v),
-  )
+  const sources = [
+    imageDeFin,
+    ...liste(adresses).map((a) => snapshotEndpoint(a)?.toString() ?? null),
+  ].filter((v): v is string => Boolean(v))
 
   for (const source of sources) {
     let url: URL
@@ -792,7 +869,8 @@ export async function fetchImage(
   }
 
   // Dernier recours : une image tirée du flux vidéo, qui lui répond.
-  return statusUrl ? await fetchFrame(statusUrl) : null
+  const adressesRestantes = liste(adresses)
+  return adressesRestantes.length > 0 ? await fetchFrame(adressesRestantes) : null
 }
 
 /**
